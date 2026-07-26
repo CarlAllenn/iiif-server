@@ -66,7 +66,10 @@ fn assert_pattern(name: &str, buf: &[u8], out_w: u32, origin: (u32, u32), tolera
 }
 
 #[test]
-fn jp2_master_serves_exact_pixels() {
+fn jp2_partial_grid_master_serves_exact_pixels() {
+    // 512px tiles on 1024×768: the bottom row is partial. Region decode
+    // on partial grids needs the fixed j2k (frames-sg/j2k#62); this
+    // pins bit-exactness through the region path.
     let (w, h, buf) = crop_via_pipeline(
         "rgb_pyramid.jp2",
         "300,200,256,256/max/0/default.png",
@@ -78,8 +81,8 @@ fn jp2_master_serves_exact_pixels() {
 }
 
 #[test]
-fn jp2_exact_grid_fast_path_serves_exact_pixels() {
-    // 256px tiles divide 1024×768 exactly → the region-decode fast path.
+fn jp2_exact_grid_master_serves_exact_pixels() {
+    // 256px tiles divide 1024×768 exactly.
     let (w, h, buf) = crop_via_pipeline(
         "rgb_exact.jp2",
         "300,200,256,256/max/0/default.png",

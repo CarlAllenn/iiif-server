@@ -31,3 +31,6 @@ wildcards = "deny"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+# Temporary (issue #21): the j2k fork carrying the frames-sg/j2k#62 fix,
+# pinned by rev in [patch.crates-io]. Remove with the patch.
+allow-git = ["https://github.com/CarlAllenn/j2k"]
