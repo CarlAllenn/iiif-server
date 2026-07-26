@@ -42,6 +42,12 @@ tasks:
     cmds:
       - scripts/gen_fixtures.sh
 
+  spike1:
+    desc: "SPIKE 1: JPEG-in-TIFF goldens vs libvips (generates fixtures, runs ignored tests)"
+    cmds:
+      - scripts/gen_spike1.sh
+      - cargo test --release -p iiif-core --test spike1_jpeg_in_tiff -- --ignored --nocapture
+
   check:
     desc: Format check + lint + tests (what CI runs)
     cmds:

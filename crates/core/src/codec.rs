@@ -302,13 +302,38 @@ fn raster_from_decoded(
                 data,
             })
         }
-        ColorType::RGB(8) | ColorType::YCbCr(8) => {
-            // For JPEG-compressed tiles the internal decoder outputs RGB
-            // even when the photometric interpretation says YCbCr.
+        ColorType::RGB(8) => {
             let mut data = data;
             data.truncate(pixels * 3);
             if data.len() < pixels * 3 {
                 return Err(CodecError::Corrupt("short tile data".to_owned()));
+            }
+            Ok(Raster::Rgb8 {
+                width,
+                height,
+                data,
+            })
+        }
+        ColorType::YCbCr(8) => {
+            // For JPEG-compressed tiles the tiff crate keeps the JPEG
+            // decoder's *input* colorspace, so the buffer holds
+            // interleaved, already-upsampled Y′CbCr samples — the
+            // conversion to RGB is ours (JPEG full-range BT.601). SPIKE 1
+            // caught exactly this: treating these samples as RGB produced
+            // a mean channel error of 89/255 against the libjpeg golden.
+            let mut data = data;
+            data.truncate(pixels * 3);
+            if data.len() < pixels * 3 {
+                return Err(CodecError::Corrupt("short tile data".to_owned()));
+            }
+            for px in data.chunks_exact_mut(3) {
+                let [y, cb, cr] = [f64::from(px[0]), f64::from(px[1]), f64::from(px[2])];
+                let r = y + 1.402 * (cr - 128.0);
+                let g = y - 0.344_136 * (cb - 128.0) - 0.714_136 * (cr - 128.0);
+                let b = y + 1.772 * (cb - 128.0);
+                px[0] = r.round().clamp(0.0, 255.0).to_u8().unwrap_or(0);
+                px[1] = g.round().clamp(0.0, 255.0).to_u8().unwrap_or(0);
+                px[2] = b.round().clamp(0.0, 255.0).to_u8().unwrap_or(0);
             }
             Ok(Raster::Rgb8 {
                 width,
