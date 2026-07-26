@@ -79,6 +79,40 @@ jobs:
       # audits move to the scanner baseline (renovate-config issue #7).
       - run: task ci
 
+  secrets:
+    name: gitleaks history scan
+    runs-on: ubuntu-latest
+    steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # enforcement per issue #6 canon (allowlist derived from audit run;
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          # gitleaks itself makes no network calls; this is the GitHub-owned
+          # cold-cache set (mise tool installs on cache miss).
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # Full history: the scan re-applies the pinned ruleset to every
+          # commit, not just the tip (templates/gitleaks/README.md).
+          fetch-depth: 0
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+      - run: task scan:secrets
+
   validate:
     name: Official IIIF validators (v3 + v2.1, level 2)
     runs-on: ubuntu-latest

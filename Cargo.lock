@@ -833,7 +833,6 @@ dependencies = [
  "object_store",
  "reqwest",
  "rustls",
- "tempfile",
  "tokio",
 ]
 

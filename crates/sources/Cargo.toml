@@ -27,7 +27,12 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tempfile = "=3.27.0"
+
+[package.metadata.cargo-machete]
+# reqwest is never `use`d here: the direct dependency exists solely to pin
+# the TLS/http2 feature set of the reqwest that object_store pulls in (the
+# rustls-no-provider rationale above).
+ignored = ["reqwest"]
 
 [lints]
 workspace = true
