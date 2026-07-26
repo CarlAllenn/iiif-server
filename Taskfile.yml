@@ -1,32 +1,151 @@
 ---
 version: "3"
 
+# Every command runs with bash strict mode: exit on error, unset vars are
+# errors, pipeline failures propagate.
+set: [errexit, nounset, pipefail]
+
+# Parallel deps interleave output; prefix each line with its task name.
+output: prefixed
+
 tasks:
+  ci:
+    desc: Everything CI runs — the full gate, identical locally and on GitHub
+    deps: [lint, test]
+
   test:
     desc: Run the test suite (all crates, all features)
+    # Fingerprinted: unchanged inputs skip the run; task --force overrides.
+    method: checksum
+    sources: &rust-sources
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - Cargo.lock
+      - mise.toml
+      - mise.lock
+      - exclude: "**/target/**"
     cmds:
       - cargo test --workspace --all-features
 
   fmt:
-    desc: Format all code
+    desc: Apply all formatters
     cmds:
       - cargo fmt --all
       - taplo fmt
       - shfmt -w .
 
   lint:
-    desc: All linters, warnings as errors
+    desc: Run every linter over the whole repository
+    deps:
+      - lint:rust
+      - lint:deny
+      - lint:toml
+      - lint:yaml
+      - lint:md
+      - lint:spell
+      - lint:ec
+      - lint:actions
+      - lint:shell
+
+  lint:rust:
+    desc: rustfmt (check) + clippy, warnings as errors
+    method: checksum
+    sources: *rust-sources
     cmds:
+      - cargo fmt --all --check
       - cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+  lint:deny:
+    desc: cargo-deny (advisories, licenses, bans, sources)
+    method: checksum
+    sources:
+      - "**/Cargo.toml"
+      - Cargo.lock
+      - deny.toml
+      - mise.toml
+      - mise.lock
+      - exclude: "**/target/**"
+    cmds:
       - cargo deny check
+
+  lint:toml:
+    desc: taplo format-check + lint over all TOML
+    method: checksum
+    sources:
+      # mise.toml/mise.lock are TOML — the file class already covers the pin
+      - "**/*.toml"
+      - exclude: "**/target/**"
+    cmds:
       - taplo fmt --check
       - taplo lint
+
+  lint:yaml:
+    desc: yamllint (strict) over all YAML
+    method: checksum
+    sources:
+      - "**/*.yml"
+      - "**/*.yaml"
+      - .yamllint
+      - mise.toml
+      - mise.lock
+    cmds:
       - yamllint --strict .
+
+  lint:md:
+    desc: markdownlint over all Markdown
+    method: checksum
+    sources:
+      - "**/*.md"
+      - .markdownlint-cli2.jsonc
+      - mise.toml
+      - mise.lock
+    cmds:
       - markdownlint-cli2
-      - ec
+
+  lint:spell:
+    desc: codespell over the repository
+    method: checksum
+    sources: &whole-tree-sources
+      - "**/*"
+      - .codespellrc
+      - exclude: .task/**
+      - exclude: .git/**
+      - exclude: "**/target/**"
+      - exclude: tests/fixtures/**
+      - exclude: fuzz/corpus/**
+      - exclude: fuzz/artifacts/**
+      - exclude: spikes/out/**
+    cmds:
       - codespell
+
+  lint:ec:
+    desc: editorconfig-checker over all tracked files
+    method: checksum
+    sources: *whole-tree-sources
+    cmds:
+      - ec
+
+  lint:actions:
+    desc: actionlint + zizmor over GitHub Actions workflows
+    method: checksum
+    sources:
+      - .github/workflows/**
+      - mise.toml
+      - mise.lock
+    cmds:
       - actionlint
       - zizmor --min-severity low .github/workflows/
+
+  lint:shell:
+    desc: shellcheck + shfmt (check mode) over shell scripts
+    method: checksum
+    sources:
+      - "**/*.sh"
+      - .shellcheckrc
+      - mise.toml
+      - mise.lock
+      - exclude: "**/target/**"
+    cmds:
       - shfmt -d .
       - |
         files=$(shfmt --find .)
@@ -83,10 +202,3 @@ tasks:
     desc: End-to-end object-store serving vs Docker MinIO (pixel-verified)
     cmds:
       - scripts/e2e_s3.sh
-
-  check:
-    desc: Format check + lint + tests (what CI runs)
-    cmds:
-      - cargo fmt --all --check
-      - task: lint
-      - task: test

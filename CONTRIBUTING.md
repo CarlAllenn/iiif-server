@@ -29,7 +29,7 @@ What is always welcome:
 ## Development
 
 Tooling is pinned with [mise](https://mise.jdx.dev): `mise install`, then
-`task check` runs exactly what CI runs (fmt + clippy + cargo-deny + linters +
+`task ci` runs exactly what CI runs (fmt + clippy + cargo-deny + linters +
 tests). `lefthook install` wires the same checks as git hooks.
 
 The workspace is `#![forbid(unsafe_code)]` throughout, and every dependency

@@ -34,10 +34,22 @@ jobs:
         with:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.7.12
+      # go-task fingerprints (Taskfile `sources:`): a hit means a gate's
+      # inputs are byte-identical to a run that already passed, so it skips.
+      # go-task only writes checksums after a task succeeds, and
+      # actions/cache only saves on green jobs, so a failing gate can never
+      # be cached green; on restore, task re-verifies every checksum against
+      # the actual sources, so a stale entry simply re-runs.
+      - name: Cache task fingerprints
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .task
+          key: task-fingerprints-${{ matrix.runner }}-${{ github.sha }}
+          restore-keys: task-fingerprints-${{ matrix.runner }}-
       - env:
           # zizmor: enables online audits (known-vulnerable-actions etc.)
           GH_TOKEN: ${{ github.token }}
-        run: task check
+        run: task ci
 
   validate:
     name: Official IIIF validators (v3 + v2.1, level 2)
