@@ -11,3 +11,6 @@ settings.local.json
 /fuzz/artifacts/
 /fuzz/target/
 /fuzz/Cargo.lock
+
+# go-task fingerprint cache
+.task/

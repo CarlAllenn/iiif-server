@@ -72,7 +72,7 @@ Toolchain is pinned with [mise](https://mise.jdx.dev); MSRV is Rust 1.96.
 
 ```bash
 mise install
-task check    # exactly what CI runs: fmt + all linters + tests
+task ci       # exactly what CI runs: fmt + all linters + tests
 task validate # official IIIF validators (both API versions), local build
 ```
 
