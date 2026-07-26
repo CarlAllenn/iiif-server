@@ -136,7 +136,7 @@ fn one_real_tile_decoded_resized_encoded() {
     let plan = evaluate(&request, 1024, 768, LIMITS).unwrap();
     assert_eq!((plan.out_w, plan.out_h), (128, 128));
 
-    let bytes = pipeline::execute(&mut tiff, &plan).unwrap();
+    let bytes = pipeline::execute(&mut tiff as &mut dyn iiif_core::codec::Master, &plan).unwrap();
     let mut reader = png::Decoder::new(Cursor::new(&bytes)).read_info().unwrap();
     let mut buf = vec![0; reader.output_buffer_size().unwrap()];
     let info = reader.next_frame(&mut buf).unwrap();
@@ -163,7 +163,7 @@ fn one_real_tile_decoded_resized_encoded() {
     // Same request as JPEG: decodes and has the right dimensions.
     let request = ImageRequest::parse("256,256,256,256/128,/0/default.jpg").unwrap();
     let plan = evaluate(&request, 1024, 768, LIMITS).unwrap();
-    let bytes = pipeline::execute(&mut tiff, &plan).unwrap();
+    let bytes = pipeline::execute(&mut tiff as &mut dyn iiif_core::codec::Master, &plan).unwrap();
     assert_eq!(&bytes[..2], &[0xFF, 0xD8], "JPEG SOI marker");
     let mut zune = zune_jpeg::JpegDecoder::new(Cursor::new(&bytes));
     let pixels = zune.decode().unwrap();
@@ -178,7 +178,7 @@ fn quality_and_rotation_transforms() {
     // Gray quality produces single-channel PNG.
     let request = ImageRequest::parse("0,0,256,256/64,/0/gray.png").unwrap();
     let plan = evaluate(&request, 1024, 768, LIMITS).unwrap();
-    let bytes = pipeline::execute(&mut tiff, &plan).unwrap();
+    let bytes = pipeline::execute(&mut tiff as &mut dyn iiif_core::codec::Master, &plan).unwrap();
     let mut reader = png::Decoder::new(Cursor::new(&bytes)).read_info().unwrap();
     let mut buf = vec![0; reader.output_buffer_size().unwrap()];
     let info = reader.next_frame(&mut buf).unwrap();
@@ -187,7 +187,7 @@ fn quality_and_rotation_transforms() {
     // Bitonal: only 0 and 255 survive.
     let request = ImageRequest::parse("0,0,256,256/64,/0/bitonal.png").unwrap();
     let plan = evaluate(&request, 1024, 768, LIMITS).unwrap();
-    let bytes = pipeline::execute(&mut tiff, &plan).unwrap();
+    let bytes = pipeline::execute(&mut tiff as &mut dyn iiif_core::codec::Master, &plan).unwrap();
     let mut reader = png::Decoder::new(Cursor::new(&bytes)).read_info().unwrap();
     let mut buf = vec![0; reader.output_buffer_size().unwrap()];
     let info = reader.next_frame(&mut buf).unwrap();
@@ -200,7 +200,7 @@ fn quality_and_rotation_transforms() {
     // 90° rotation swaps dimensions.
     let request = ImageRequest::parse("0,0,512,256/256,128/90/default.png").unwrap();
     let plan = evaluate(&request, 1024, 768, LIMITS).unwrap();
-    let bytes = pipeline::execute(&mut tiff, &plan).unwrap();
+    let bytes = pipeline::execute(&mut tiff as &mut dyn iiif_core::codec::Master, &plan).unwrap();
     let mut reader = png::Decoder::new(Cursor::new(&bytes)).read_info().unwrap();
     let mut buf = vec![0; reader.output_buffer_size().unwrap()];
     let info = reader.next_frame(&mut buf).unwrap();
@@ -224,7 +224,7 @@ fn mirroring_reverses_rows() {
     let mut tiff = fixture();
     let request = ImageRequest::parse("0,0,256,256/256,/!0/default.png").unwrap();
     let plan = evaluate(&request, 1024, 768, LIMITS).unwrap();
-    let bytes = pipeline::execute(&mut tiff, &plan).unwrap();
+    let bytes = pipeline::execute(&mut tiff as &mut dyn iiif_core::codec::Master, &plan).unwrap();
     let mut reader = png::Decoder::new(Cursor::new(&bytes)).read_info().unwrap();
     let mut buf = vec![0; reader.output_buffer_size().unwrap()];
     reader.next_frame(&mut buf).unwrap();

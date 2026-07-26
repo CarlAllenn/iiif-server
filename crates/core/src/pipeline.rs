@@ -2,7 +2,7 @@
 //! mirror/rotate → encode. Pure compute; the caller owns threading and
 //! backpressure.
 
-use crate::codec::{CodecError, TiffPyramid};
+use crate::codec::{CodecError, Master};
 use crate::encode::{EncodeError, encode};
 use crate::eval::Plan;
 use crate::grammar::Quality;
@@ -10,7 +10,6 @@ use crate::image::{Raster, RasterError};
 use fast_image_resize as fir;
 use num_traits::cast::ToPrimitive;
 use std::fmt;
-use std::io::{Read, Seek};
 
 /// Pipeline failure, split by who caused it.
 #[derive(Debug)]
@@ -58,56 +57,29 @@ impl From<RasterError> for PipelineError {
     }
 }
 
-/// Execute a plan against an opened TIFF pyramid, returning encoded bytes.
+/// Execute a plan against an opened master, returning encoded bytes.
 ///
 /// # Errors
 ///
 /// See [`PipelineError`].
-pub fn execute<R: Read + Seek>(
-    source: &mut TiffPyramid<R>,
-    plan: &Plan,
-) -> Result<Vec<u8>, PipelineError> {
-    // 1. Pick the pyramid level with just enough detail.
+pub fn execute(source: &mut dyn Master, plan: &Plan) -> Result<Vec<u8>, PipelineError> {
+    // 1. Decode the crop with enough detail for the output scale; the
+    //    codec picks its own cheapest path (pyramid level, reduced-
+    //    resolution wavelet decode, or resident raster).
     let needed = f64::from(plan.crop.w) / f64::from(plan.out_w.max(1));
-    let level = *source.level_for_scale(needed);
+    let raster = source.decode_crop(plan.crop, needed)?;
 
-    // 2. Map the full-resolution crop into level coordinates.
-    let factor = f64::from(level.scale_factor);
-    let left = ((f64::from(plan.crop.x) / factor).floor())
-        .to_u32()
-        .unwrap_or(u32::MAX)
-        .min(level.width.saturating_sub(1));
-    let top = ((f64::from(plan.crop.y) / factor).floor())
-        .to_u32()
-        .unwrap_or(u32::MAX)
-        .min(level.height.saturating_sub(1));
-    let right = ((f64::from(plan.crop.x) + f64::from(plan.crop.w)) / factor)
-        .ceil()
-        .to_u32()
-        .unwrap_or(u32::MAX)
-        .min(level.width);
-    let bottom = ((f64::from(plan.crop.y) + f64::from(plan.crop.h)) / factor)
-        .ceil()
-        .to_u32()
-        .unwrap_or(u32::MAX)
-        .min(level.height);
-    let region_w = (right - left).max(1);
-    let region_h = (bottom - top).max(1);
-
-    // 3. Decode exactly the touched tiles.
-    let raster = source.decode_region(level.ifd, left, top, region_w, region_h)?;
-
-    // 4. Resample to the output size.
+    // 2. Resample to the output size.
     let raster = resize(raster, plan.out_w, plan.out_h)?;
 
-    // 5. Quality.
+    // 3. Quality.
     let raster = match plan.quality {
         Quality::Default | Quality::Color => raster,
         Quality::Gray => raster.into_gray(),
         Quality::Bitonal => raster.into_bitonal(),
     };
 
-    // 6. Mirror, then rotate.
+    // 4. Mirror, then rotate.
     let mut raster = raster;
     if plan.mirror {
         raster.mirror();
@@ -120,7 +92,7 @@ pub fn execute<R: Read + Seek>(
         return Err(PipelineError::ArbitraryRotationUnimplemented);
     };
 
-    // 7. Encode.
+    // 5. Encode.
     Ok(encode(&raster, plan.format)?)
 }
 

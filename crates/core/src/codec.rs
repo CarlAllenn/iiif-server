@@ -1,19 +1,106 @@
-//! Codec layer: turns master files into [`Raster`] regions.
+//! Codec layer: turns master files into [`Raster`] regions, behind the
+//! [`Master`] trait (the codec seam the design spec requires — Plan B for
+//! any one format is a contained swap).
 //!
 //! Every decoder is pure Rust (the zero-C-parsing-untrusted-input
 //! property). Decoders are synchronous; the async source seam bridges at
 //! the call boundary (see `iiif-sources`).
 //!
-//! M0 ships the pyramidal/tiled TIFF path; the M2 matrix widens it and JP2
-//! arrives behind the same interface.
+//! Formats: pyramidal/tiled TIFF (this file), JP2/HTJ2K ([`jp2`]), plain
+//! JPEG and PNG ([`simple`]).
 
+pub mod jp2;
+pub mod simple;
+
+use crate::eval::CropRect;
 use crate::image::{Raster, RasterError};
 use crate::info::{ImageDescription, SizeEntry, TileSet};
 use num_traits::cast::ToPrimitive;
 use std::fmt;
-use std::io::{Read, Seek};
+use std::io::{Read, Seek, SeekFrom};
 use tiff::ColorType;
 use tiff::decoder::{Decoder, DecodingResult};
+
+/// A master image opened for serving: enough metadata for info.json and
+/// the ability to decode any clipped full-resolution crop at (at least)
+/// the detail an output scale needs.
+pub trait Master: Send {
+    /// Full-resolution dimensions.
+    fn dimensions(&self) -> (u32, u32);
+
+    /// The info.json ingredients derived from the master's actual
+    /// structure.
+    fn describe(&self) -> ImageDescription;
+
+    /// Decode `crop` (full-resolution coordinates, already clipped by the
+    /// evaluation layer) with enough detail for a downscale factor of
+    /// `needed` (full-res pixels per output pixel, ≥ 1). The result may be
+    /// larger than `crop`/`needed` implies — the pipeline resamples to the
+    /// exact output size.
+    ///
+    /// # Errors
+    ///
+    /// Decode failures; see [`CodecError`].
+    fn decode_crop(&mut self, crop: CropRect, needed: f64) -> Result<Raster, CodecError>;
+}
+
+/// Sniff the container format and open the right decoder.
+///
+/// TIFF stays streaming (ranged reads through the source seam); the
+/// JPEG-2000/JPEG/PNG paths read the remaining bytes — the design spec's
+/// acknowledged model for JP2 (`&[u8]` input; bounded chunk caching is the
+/// object-store refinement at M4).
+///
+/// # Errors
+///
+/// [`CodecError::Unsupported`] with an actionable message for anything
+/// outside the supported matrix.
+pub fn open_master<R: Read + Seek + Send + 'static>(
+    mut reader: R,
+) -> Result<Box<dyn Master>, CodecError> {
+    let mut magic = [0u8; 12];
+    let got = read_up_to(&mut reader, &mut magic)
+        .map_err(|e| CodecError::Corrupt(format!("cannot read file header: {e}")))?;
+    reader
+        .seek(SeekFrom::Start(0))
+        .map_err(|e| CodecError::Corrupt(format!("cannot rewind: {e}")))?;
+    let magic = &magic[..got];
+    if magic.starts_with(b"II*\0") || magic.starts_with(b"MM\0*") {
+        return Ok(Box::new(TiffPyramid::open(reader)?));
+    }
+    let mut bytes = Vec::new();
+    reader
+        .read_to_end(&mut bytes)
+        .map_err(|e| CodecError::Corrupt(format!("cannot read master: {e}")))?;
+    if (magic.len() >= 12 && &magic[4..12] == b"jP  \r\n\x87\n")
+        || magic.starts_with(b"\xFF\x4F\xFF\x51")
+    {
+        return Ok(Box::new(jp2::Jp2Master::new(bytes)?));
+    }
+    if magic.starts_with(b"\xFF\xD8") {
+        return Ok(Box::new(simple::SimpleMaster::from_jpeg(&bytes)?));
+    }
+    if magic.starts_with(b"\x89PNG") {
+        return Ok(Box::new(simple::SimpleMaster::from_png(&bytes)?));
+    }
+    Err(CodecError::Unsupported(
+        "unrecognized master format (supported: pyramidal TIFF, JP2/HTJ2K, JPEG, PNG)".to_owned(),
+    ))
+}
+
+/// Read as many of `buf` as the reader will give without erroring on EOF.
+fn read_up_to<R: Read>(reader: &mut R, buf: &mut [u8]) -> std::io::Result<usize> {
+    let mut filled = 0;
+    while filled < buf.len() {
+        match reader.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(filled)
+}
 
 /// One resolution level of a pyramid, in its own pixel coordinates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -346,5 +433,43 @@ fn raster_from_decoded(
             (level {}×{})",
             level.width, level.height
         ))),
+    }
+}
+
+impl<R: Read + Seek + Send> Master for TiffPyramid<R> {
+    fn dimensions(&self) -> (u32, u32) {
+        Self::dimensions(self)
+    }
+
+    fn describe(&self) -> ImageDescription {
+        Self::describe(self)
+    }
+
+    fn decode_crop(&mut self, crop: CropRect, needed: f64) -> Result<Raster, CodecError> {
+        // Pick the pyramid level with just enough detail, then map the
+        // full-resolution crop into that level's coordinates.
+        let level = *self.level_for_scale(needed);
+        let factor = f64::from(level.scale_factor);
+        let left = ((f64::from(crop.x) / factor).floor())
+            .to_u32()
+            .unwrap_or(u32::MAX)
+            .min(level.width.saturating_sub(1));
+        let top = ((f64::from(crop.y) / factor).floor())
+            .to_u32()
+            .unwrap_or(u32::MAX)
+            .min(level.height.saturating_sub(1));
+        let right = ((f64::from(crop.x) + f64::from(crop.w)) / factor)
+            .ceil()
+            .to_u32()
+            .unwrap_or(u32::MAX)
+            .min(level.width);
+        let bottom = ((f64::from(crop.y) + f64::from(crop.h)) / factor)
+            .ceil()
+            .to_u32()
+            .unwrap_or(u32::MAX)
+            .min(level.height);
+        let region_w = (right - left).max(1);
+        let region_h = (bottom - top).max(1);
+        self.decode_region(level.ifd, left, top, region_w, region_h)
     }
 }

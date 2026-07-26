@@ -7,7 +7,7 @@ use bytes::Bytes;
 use http_body_util::Full;
 use hyper::header::{ACCEPT, ALLOW, CONTENT_TYPE, HeaderValue, LINK, LOCATION, RETRY_AFTER, VARY};
 use hyper::{Method, Request, Response, StatusCode};
-use iiif_core::codec::{CodecError, TiffPyramid};
+use iiif_core::codec::{CodecError, open_master};
 use iiif_core::encode::EncodeError;
 use iiif_core::eval::{EvalError, evaluate};
 use iiif_core::grammar::{ImageRequest, ParseError};
@@ -98,7 +98,7 @@ impl App {
             let file = source
                 .into_std_file()
                 .map_err(|e| CodecError::Corrupt(format!("file handle: {e}")))?;
-            TiffPyramid::open(file).map(|tiff| tiff.describe())
+            open_master(file).map(|master| master.describe())
         })
         .await;
         let description = match opened {
@@ -159,10 +159,11 @@ impl App {
             let file = source.into_std_file().map_err(|e| {
                 ImageFailure::Codec(CodecError::Corrupt(format!("file handle: {e}")))
             })?;
-            let mut tiff = TiffPyramid::open(file)?;
-            let (full_w, full_h) = tiff.dimensions();
+            let mut master = open_master(file)?;
+            let (full_w, full_h) = master.dimensions();
             let plan = evaluate(&request, full_w, full_h, limits).map_err(ImageFailure::Eval)?;
-            let bytes = pipeline::execute(&mut tiff, &plan).map_err(ImageFailure::Pipeline)?;
+            let bytes =
+                pipeline::execute(master.as_mut(), &plan).map_err(ImageFailure::Pipeline)?;
             Ok::<_, ImageFailure>((bytes, plan))
         })
         .await;

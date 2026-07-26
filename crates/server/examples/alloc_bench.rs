@@ -12,7 +12,7 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use iiif_core::codec::TiffPyramid;
+use iiif_core::codec::{Master, TiffPyramid};
 use iiif_core::eval::evaluate;
 use iiif_core::grammar::ImageRequest;
 use iiif_core::info::Limits;
@@ -75,10 +75,11 @@ fn main() {
                     // pattern, and the allocation-heavy path.
                     let file = File::open(fixture).expect("open");
                     let mut tiff = TiffPyramid::open(file).expect("parse");
-                    let (w, h) = tiff.dimensions();
+                    let (w, h) = TiffPyramid::dimensions(&tiff);
                     let request = request_for(thread * iters + i);
                     let plan = evaluate(&request, w, h, LIMITS).expect("evaluate");
-                    let encoded = pipeline::execute(&mut tiff, &plan).expect("pipeline");
+                    let encoded =
+                        pipeline::execute(&mut tiff as &mut dyn Master, &plan).expect("pipeline");
                     assert!(!encoded.is_empty());
                 }
             });

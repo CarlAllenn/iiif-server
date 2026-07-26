@@ -35,6 +35,28 @@ mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips tiffsave "${tm
     --tile --tile-width 256 --tile-height 256 \
     --pyramid --compression deflate
 
-cd "${root_dir}" && shasum -a 256 tests/fixtures/*.tif >tests/fixtures/SHA256SUMS
+# The same pattern as the other supported source formats:
+# lossless tiled JP2 (bit-exact assertions), plain JPEG (lossy,
+# tolerance assertions), plain PNG (exact).
+# 512px tiles on 1024×768: the bottom row is PARTIAL — deliberately, to
+# pin the j2k partial-grid fallback path (upstream region-decode bug).
+mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress \
+    -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_pyramid.jp2" \
+    -t 512,512 -n 4 >/dev/null
+# 256px tiles divide 1024×768 exactly: the fast region-decode path.
+mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress \
+    -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_exact.jp2" \
+    -t 256,256 -n 4 >/dev/null
+mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips jpegsave \
+    "${tmp}/pattern.ppm" "${root_dir}/tests/fixtures/rgb_plain.jpg" --Q 92
+# PNG committed at 512×384 (crop, not resize — keeps pixels exact) so the
+# repo does not carry megabytes of fixture.
+mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips crop \
+    "${tmp}/pattern.ppm" "${tmp}/pattern_small.v" 0 0 512 384
+mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips pngsave \
+    "${tmp}/pattern_small.v" "${root_dir}/tests/fixtures/rgb_plain.png"
+
+cd "${root_dir}" && shasum -a 256 tests/fixtures/*.tif tests/fixtures/*.jp2 \
+    tests/fixtures/*.jpg tests/fixtures/*.png >tests/fixtures/SHA256SUMS
 echo "regenerated:"
 cat "${root_dir}/tests/fixtures/SHA256SUMS"
