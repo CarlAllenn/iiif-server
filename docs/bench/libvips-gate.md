@@ -78,8 +78,11 @@ options, for the record:
    removes the decode-full-then-crop fallback, extending the fast path
    to every tile grid.
 
-Recommendation: **option 1 for now**, revisit at the launch milestone
-with real-corpus numbers rather than synthetic ones.
+Recommendation: **option 1 for now**. The planned revisit happened on
+2026-07-26 — real masters turned out not to exist anywhere to draw on,
+so the realistic corpus is synthetic by necessity, measured head-to-head
+against the deployed incumbent in [cantaloupe-eval.md](cantaloupe-eval.md).
+The decision itself is tracked in issue #2.
 
 ## Caveat: these are fast-path numbers only
 

@@ -34,7 +34,9 @@ Three real defects, each found by a mechanism the spec asked for:
    comparing against OpenJPEG goldens. Contained with a
    decode-full-then-crop fallback, pinned by fixtures for both paths,
    and surfaced to operators by `iiif-server check`. Worth reporting
-   upstream.
+   upstream. *(Done: filed as
+   [frames-sg/j2k#62](https://github.com/frames-sg/j2k/issues/62) with a
+   standalone reproducer, 2026-07-26.)*
 3. **25 GB decompression bomb (fuzzing).** A 68-byte PNG header
    declaring 512×16777335 allocated 25 GB before a pixel was decoded — a
    trivial remote OOM. The spec's per-decode pixel ceiling is now
