@@ -1,5 +1,7 @@
 # iiif-server (working name)
 
+[![ci](https://github.com/CarlAllenn/iiif-server/actions/workflows/ci.yml/badge.svg)](https://github.com/CarlAllenn/iiif-server/actions/workflows/ci.yml)
+
 A complete, correct, boring implementation of the [IIIF Image
 API](https://iiif.io/api/image/3.0/) — **3.0 and 2.1, level 2 plus the
 entire optional feature table** — as one static binary. Pure Rust
