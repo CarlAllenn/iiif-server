@@ -74,6 +74,11 @@ tasks:
           cargo +nightly fuzz run {{.ITEM}} --
           -max_total_time={{.FUZZ_SECONDS}} -rss_limit_mb=4096 -malloc_limit_mb=2048
 
+  bench:
+    desc: "M2 gate: our latency vs libvips on the same masters (BENCH_REPS to extend)"
+    cmds:
+      - scripts/bench_libvips.sh
+
   e2e:s3:
     desc: End-to-end object-store serving vs Docker MinIO (pixel-verified)
     cmds:

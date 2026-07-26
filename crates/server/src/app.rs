@@ -385,6 +385,8 @@ impl App {
             return error(StatusCode::INTERNAL_SERVER_ERROR, "pool closed");
         };
         let limits = self.limits;
+        // Spare workers → let codecs use their own internal parallelism.
+        let pool_idle = self.decode_permits.available_permits() > 0;
         let source_version = source.source_version();
         let identifier_path = id.as_path().to_owned();
         let result = tokio::task::spawn_blocking(move || {
@@ -394,6 +396,7 @@ impl App {
                 ImageFailure::Codec(CodecError::Corrupt(format!("source handle: {e}")))
             })?;
             let mut master = open_master(reader)?;
+            master.set_internal_parallelism(pool_idle);
             let (full_w, full_h) = master.dimensions();
             let plan = evaluate(&request, full_w, full_h, limits).map_err(ImageFailure::Eval)?;
             let canonical_path = match v2_spelling {

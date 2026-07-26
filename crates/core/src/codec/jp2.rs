@@ -39,6 +39,8 @@ pub struct Jp2Master {
     components: u16,
     resolution_levels: u8,
     tile: (u32, u32),
+    /// Live pool-pressure hint; see `Master::set_internal_parallelism`.
+    internal_parallelism: bool,
     /// Whether the image dimensions are exact multiples of the tile size.
     /// j2k 0.7.5's region decode returns wrong pixels on grids with
     /// partial edge tiles (verified against `OpenJPEG` goldens, 2026-07-26;
@@ -82,6 +84,7 @@ impl Jp2Master {
             components,
             resolution_levels,
             tile,
+            internal_parallelism: false,
             exact_grid,
         })
     }
@@ -147,6 +150,10 @@ impl Master for Jp2Master {
         }
     }
 
+    fn set_internal_parallelism(&mut self, allow: bool) {
+        self.internal_parallelism = allow;
+    }
+
     fn advisories(&self) -> Vec<String> {
         let mut notes = Vec::new();
         if !self.exact_grid {
@@ -172,9 +179,15 @@ impl Master for Jp2Master {
     fn decode_crop(&mut self, crop: CropRect, needed: f64) -> Result<Raster, CodecError> {
         let mut decoder = J2kDecoder::new(&self.bytes)
             .map_err(|e| CodecError::Corrupt(format!("JP2 parse: {e}")))?;
-        // The engine's worker pool owns concurrency (SPIKE 2: Serial costs
-        // ~nothing on the region path and prevents pool oversubscription).
-        decoder.set_cpu_decode_parallelism(CpuDecodeParallelism::Serial);
+        // Pool pressure decides: an idle pool wants the codec's internal
+        // parallelism (1.7× lower latency), a saturated one does not
+        // (oversubscription costs ~16% throughput). See
+        // `Master::set_internal_parallelism`.
+        decoder.set_cpu_decode_parallelism(if self.internal_parallelism {
+            CpuDecodeParallelism::Auto
+        } else {
+            CpuDecodeParallelism::Serial
+        });
         let scale = self.downscale_for(needed);
         let fmt = self.pixel_format();
         let bpp = match fmt {

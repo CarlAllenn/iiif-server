@@ -76,6 +76,15 @@ pub trait Master: Send {
     fn advisories(&self) -> Vec<String> {
         Vec::new()
     }
+
+    /// Whether this decode may use the codec's own internal thread
+    /// parallelism. The caller sets it from live pool pressure: idle pool
+    /// → allow (better single-request latency), saturated pool → deny
+    /// (our workers already own every core; oversubscription costs
+    /// throughput). Measured crossover on JP2 region decode, M1 Pro:
+    /// idle 39 ms vs 66 ms serial; saturated 68 ops/s parallel vs 81 ops/s
+    /// serial. Default no-op — most codecs have no internal pool.
+    fn set_internal_parallelism(&mut self, _allow: bool) {}
 }
 
 /// Sniff the container format and open the right decoder.
