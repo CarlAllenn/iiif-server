@@ -1,0 +1,47 @@
+---
+name: ci
+
+"on":
+  push:
+    # renovate/lock-file-maintenance*: branch-automerge needs the ci check
+    # on the branch itself (no PR is opened unless the branch goes red).
+    branches: [main, "renovate/lock-file-maintenance*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch supersedes any run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint + test (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both shipping architectures; arm64 runners are free on public
+        # repos.
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+      - run: task check
+
+  msrv:
+    name: MSRV check (Rust 1.96)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install 1.96 --profile minimal
+      - run: rustup run 1.96 cargo check --workspace --all-features
