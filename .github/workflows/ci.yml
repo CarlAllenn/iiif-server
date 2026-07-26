@@ -33,6 +33,12 @@ jobs:
         runner: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # derives the allowlist, then flips to block mode (issue #6 canon,
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -60,6 +66,12 @@ jobs:
     name: Official IIIF validators (v3 + v2.1, level 2)
     runs-on: ubuntu-latest
     steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # derives the allowlist, then flips to block mode (issue #6 canon,
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -85,6 +97,12 @@ jobs:
     name: MSRV check
     runs-on: ubuntu-latest
     steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # derives the allowlist, then flips to block mode (issue #6 canon,
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
