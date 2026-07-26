@@ -1,40 +1,34 @@
 ---
+# Git hooks: every commit and push passes the full gate. The universal lint
+# layer (shfmt/shellcheck/yamllint/taplo/markdownlint/codespell/ec/
+# actionlint/zizmor + conventional-commit enforcement) is consumed LIVE from
+# renovate-config via remotes: — decision record and consumer skeleton in
+# templates/lefthook/README.md there. Only per-stack Rust jobs live here.
+# We comply with the tools; fixing output is never optional. Personal
+# overrides go in lefthook-local.yml (gitignored).
+
+remotes:
+  - git_url: https://github.com/CarlAllenn/renovate-config
+    refetch_frequency: 24h
+    configs:
+      - lefthook/universal.yml
+
 pre-commit:
   parallel: true
-  commands:
-    fmt:
+  jobs:
+    - name: fmt
       glob: "*.rs"
       run: cargo fmt --all --check
-    clippy:
+
+    - name: clippy
       glob: "*.rs"
       run: cargo clippy --workspace --all-features --all-targets -- -D warnings
-    taplo:
-      glob: "*.toml"
-      run: taplo fmt --check && taplo lint
-    deny:
+
+    - name: deny
       glob: "{Cargo.toml,Cargo.lock,deny.toml}"
       run: cargo deny check
-    yamllint:
-      glob: "*.{yml,yaml}"
-      run: yamllint --strict .
-    markdownlint:
-      glob: "*.md"
-      run: markdownlint-cli2
-    editorconfig:
-      run: ec
-    codespell:
-      run: codespell
-    actionlint:
-      glob: ".github/workflows/*.yml"
-      run: actionlint
-    zizmor:
-      glob: ".github/workflows/*.yml"
-      run: zizmor --min-severity low .github/workflows/
-    shell:
-      glob: "*.sh"
-      run: shfmt -d . && shellcheck {staged_files}
 
 pre-push:
-  commands:
-    test:
+  jobs:
+    - name: test
       run: cargo test --workspace --all-features

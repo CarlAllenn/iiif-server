@@ -16,7 +16,7 @@ mkdir -p "${root_dir}/tests/fixtures"
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT
 
-python3 - "${tmp}/pattern.ppm" <<'EOF'
+python3 - "${tmp}/pattern.ppm" << 'EOF'
 import sys
 
 W, H = 1024, 768
@@ -31,9 +31,9 @@ EOF
 
 # Deflate-compressed tiled pyramid: the M0 committed master.
 mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips tiffsave "${tmp}/pattern.ppm" \
-    "${root_dir}/tests/fixtures/rgb_pyramid.tif" \
-    --tile --tile-width 256 --tile-height 256 \
-    --pyramid --compression deflate
+  "${root_dir}/tests/fixtures/rgb_pyramid.tif" \
+  --tile --tile-width 256 --tile-height 256 \
+  --pyramid --compression deflate
 
 # The same pattern as the other supported source formats:
 # lossless tiled JP2 (bit-exact assertions), plain JPEG (lossy,
@@ -42,22 +42,22 @@ mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips tiffsave "${tm
 # is the common real-world grid shape and pins region decode on partial
 # grids (regression coverage for frames-sg/j2k#62).
 mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress \
-    -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_pyramid.jp2" \
-    -t 512,512 -n 4 >/dev/null
+  -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_pyramid.jp2" \
+  -t 512,512 -n 4 > /dev/null
 # 256px tiles divide 1024×768 exactly: the exact-grid control.
 mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress \
-    -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_exact.jp2" \
-    -t 256,256 -n 4 >/dev/null
+  -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_exact.jp2" \
+  -t 256,256 -n 4 > /dev/null
 mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips jpegsave \
-    "${tmp}/pattern.ppm" "${root_dir}/tests/fixtures/rgb_plain.jpg" --Q 92
+  "${tmp}/pattern.ppm" "${root_dir}/tests/fixtures/rgb_plain.jpg" --Q 92
 # PNG committed at 512×384 (crop, not resize — keeps pixels exact) so the
 # repo does not carry megabytes of fixture.
 mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips crop \
-    "${tmp}/pattern.ppm" "${tmp}/pattern_small.v" 0 0 512 384
+  "${tmp}/pattern.ppm" "${tmp}/pattern_small.v" 0 0 512 384
 mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips pngsave \
-    "${tmp}/pattern_small.v" "${root_dir}/tests/fixtures/rgb_plain.png"
+  "${tmp}/pattern_small.v" "${root_dir}/tests/fixtures/rgb_plain.png"
 
 cd "${root_dir}" && shasum -a 256 tests/fixtures/*.tif tests/fixtures/*.jp2 \
-    tests/fixtures/*.jpg tests/fixtures/*.png >tests/fixtures/SHA256SUMS
+  tests/fixtures/*.jpg tests/fixtures/*.png > tests/fixtures/SHA256SUMS
 echo "regenerated:"
 cat "${root_dir}/tests/fixtures/SHA256SUMS"

@@ -21,19 +21,19 @@ tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT
 
 vips() {
-    mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips "$@"
+  mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips "$@"
 }
 opj() {
-    mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress "$@"
+  mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress "$@"
 }
 ojph() {
-    mise --cd "${root_dir}/tools/fixtures" exec 'conda:openjph@0.30.1' -- ojph_compress "$@"
+  mise --cd "${root_dir}/tools/fixtures" exec 'conda:openjph@0.30.1' -- ojph_compress "$@"
 }
 
 # Smooth photographic-ish pattern (same family as the spike fixtures):
 # JPEG/wavelet-friendly entropy, position-identifiable content.
 pattern() { # pattern WIDTH HEIGHT OUT.ppm
-    uv run --quiet --with numpy python - "$1" "$2" "$3" <<'EOF'
+  uv run --quiet --with numpy python - "$1" "$2" "$3" << 'EOF'
 import sys
 
 import numpy as np
@@ -53,57 +53,57 @@ EOF
 
 done_all=true
 for f in scan_partial_ll.jp2 scan_partial_r20.jp2 scan_untiled_ll.jp2 \
-    scan_ht_ll.j2c scan_ht_lossy.j2c scan_pyr_deflate.tif \
-    scan_pyr_jpeg.tif scan_plain.jpg exact_ll.jp2 exact_ht_ll.j2c \
-    large_partial_ll.jp2 large_ht_ll.j2c; do
-    [ -f "${gen}/${f}" ] || done_all=false
+  scan_ht_ll.j2c scan_ht_lossy.j2c scan_pyr_deflate.tif \
+  scan_pyr_jpeg.tif scan_plain.jpg exact_ll.jp2 exact_ht_ll.j2c \
+  large_partial_ll.jp2 large_ht_ll.j2c; do
+  [ -f "${gen}/${f}" ] || done_all=false
 done
 if [ "${done_all}" = true ]; then
-    echo "eval corpus already present in ${gen}"
-    exit 0
+  echo "eval corpus already present in ${gen}"
+  exit 0
 fi
 
 # --- Typical scan, 6500×4300: 1024 does not divide either dimension. ---
 pattern 6500 4300 "${tmp}/scan.ppm"
 
 opj -i "${tmp}/scan.ppm" -o "${gen}/scan_partial_ll.jp2" \
-    -t 1024,1024 -n 6 >/dev/null
+  -t 1024,1024 -n 6 > /dev/null
 opj -i "${tmp}/scan.ppm" -o "${gen}/scan_partial_r20.jp2" \
-    -t 1024,1024 -n 6 -r 20 -I >/dev/null
+  -t 1024,1024 -n 6 -r 20 -I > /dev/null
 # Untiled codestream with 256px precincts: the common kdu/opj single-tile
 # profile.
 opj -i "${tmp}/scan.ppm" -o "${gen}/scan_untiled_ll.jp2" \
-    -c '[256,256]' -n 6 >/dev/null
+  -c '[256,256]' -n 6 > /dev/null
 # HTJ2K (Part 15), raw codestreams from OpenJPH.
 ojph -i "${tmp}/scan.ppm" -o "${gen}/scan_ht_ll.j2c" \
-    -tile_size '{1024,1024}' -num_decomps 6 -reversible true >/dev/null
+  -tile_size '{1024,1024}' -num_decomps 6 -reversible true > /dev/null
 ojph -i "${tmp}/scan.ppm" -o "${gen}/scan_ht_lossy.j2c" \
-    -tile_size '{1024,1024}' -num_decomps 6 -reversible false >/dev/null
+  -tile_size '{1024,1024}' -num_decomps 6 -reversible false > /dev/null
 # The same master as the TIFF profiles digitization actually produces,
 # plus the small-collection plain-JPEG case.
 vips tiffsave "${tmp}/scan.ppm" "${gen}/scan_pyr_deflate.tif" \
-    --tile --tile-width 256 --tile-height 256 --pyramid \
-    --compression deflate
+  --tile --tile-width 256 --tile-height 256 --pyramid \
+  --compression deflate
 vips tiffsave "${tmp}/scan.ppm" "${gen}/scan_pyr_jpeg.tif" \
-    --tile --tile-width 256 --tile-height 256 --pyramid \
-    --compression jpeg --Q 90
+  --tile --tile-width 256 --tile-height 256 --pyramid \
+  --compression jpeg --Q 90
 vips jpegsave "${tmp}/scan.ppm" "${gen}/scan_plain.jpg" --Q 92
 rm -f "${tmp}/scan.ppm"
 
 # --- Exact-grid control, 6144×4096: 1024 divides both dimensions. ---
 pattern 6144 4096 "${tmp}/exact.ppm"
 opj -i "${tmp}/exact.ppm" -o "${gen}/exact_ll.jp2" \
-    -t 1024,1024 -n 6 >/dev/null
+  -t 1024,1024 -n 6 > /dev/null
 ojph -i "${tmp}/exact.ppm" -o "${gen}/exact_ht_ll.j2c" \
-    -tile_size '{1024,1024}' -num_decomps 6 -reversible true >/dev/null
+  -tile_size '{1024,1024}' -num_decomps 6 -reversible true > /dev/null
 rm -f "${tmp}/exact.ppm"
 
 # --- Large master, 15000×11000 (165 MP): partial grid. ---
 pattern 15000 11000 "${tmp}/large.ppm"
 opj -i "${tmp}/large.ppm" -o "${gen}/large_partial_ll.jp2" \
-    -t 1024,1024 -n 7 >/dev/null
+  -t 1024,1024 -n 7 > /dev/null
 ojph -i "${tmp}/large.ppm" -o "${gen}/large_ht_ll.j2c" \
-    -tile_size '{1024,1024}' -num_decomps 7 -reversible true >/dev/null
+  -tile_size '{1024,1024}' -num_decomps 7 -reversible true > /dev/null
 rm -f "${tmp}/large.ppm"
 
 echo "eval corpus:"

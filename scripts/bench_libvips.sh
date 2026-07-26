@@ -14,37 +14,37 @@ PORT=6969
 REPS=${BENCH_REPS:-60}
 
 if [ ! -f "${gen}/spike1_ycbcr420.tif" ]; then
-    echo "run scripts/gen_spike1.sh first" >&2
-    exit 2
+  echo "run scripts/gen_spike1.sh first" >&2
+  exit 2
 fi
 if [ ! -f "${gen}/spike2_lossless.jp2" ]; then
-    echo "run scripts/gen_spike2.sh first" >&2
-    exit 2
+  echo "run scripts/gen_spike2.sh first" >&2
+  exit 2
 fi
 
-cargo build --release -p iiif-server >/dev/null
+cargo build --release -p iiif-server > /dev/null
 ./target/release/iiif-server serve "${gen}" --bind "127.0.0.1:${PORT}" \
-    --max-width 20000 --max-height 20000 --max-area 400000000 &
+  --max-width 20000 --max-height 20000 --max-area 400000000 &
 server_pid=0
 trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
 server_pid=$!
 for _ in $(seq 1 50); do
-    if curl -sf "http://127.0.0.1:${PORT}/healthz" >/dev/null 2>&1; then
-        break
-    fi
-    sleep 0.1
+  if curl -sf "http://127.0.0.1:${PORT}/healthz" > /dev/null 2>&1; then
+    break
+  fi
+  sleep 0.1
 done
 
 platform=$(uname -sm) || platform=unknown
-cpu=$(sysctl -n machdep.cpu.brand_string 2>/dev/null) || cpu=""
+cpu=$(sysctl -n machdep.cpu.brand_string 2> /dev/null) || cpu=""
 if [ -z "${cpu}" ] && [ -r /proc/cpuinfo ]; then
-    cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1) || cpu=""
+  cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1) || cpu=""
 fi
 echo "hardware: ${platform}, ${cpu:-unknown CPU}"
 echo "reps per case: ${REPS}"
 echo
 
-uv run --quiet --with numpy python - "${PORT}" "${REPS}" "${gen}" <<'EOF'
+uv run --quiet --with numpy python - "${PORT}" "${REPS}" "${gen}" << 'EOF'
 import subprocess
 import sys
 import time

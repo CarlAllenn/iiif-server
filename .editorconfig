@@ -11,6 +11,14 @@ indent_size = 4
 [{*.{yml,yaml,toml,json,jsonc},.yamllint}]
 indent_size = 2
 
+# Matches the canonical shfmt flags in the universal lefthook job
+# (renovate-config lefthook/universal.yml) so ec and shfmt never disagree.
+[*.sh]
+indent_size = 2
+switch_case_indent = true
+binary_next_line = true
+space_redirects = true
+
 [*.md]
 indent_size = unset
 

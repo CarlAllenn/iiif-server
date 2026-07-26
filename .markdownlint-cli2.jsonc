@@ -11,5 +11,8 @@
     }
   },
   "globs": ["**/*.md"],
-  "ignores": ["target/**", "node_modules/**"]
+  // .git/**: the glob engine traverses VCS internals, and the lefthook
+  // remote cache (.git/info/lefthook-remotes/) contains markdown that isn't
+  // ours to lint.
+  "ignores": ["target/**", "node_modules/**", ".git/**"]
 }

@@ -29,59 +29,59 @@ CONF=${CANTALOUPE_CONF:?set CANTALOUPE_CONF to the dir holding the eval properti
 PASS=${BENCH_PASS:-all}
 
 if [ ! -f "${gen}/scan_partial_ll.jp2" ]; then
-    echo "run scripts/gen_eval_corpus.sh first" >&2
-    exit 2
+  echo "run scripts/gen_eval_corpus.sh first" >&2
+  exit 2
 fi
 
-cargo build --release -p iiif-server >/dev/null
+cargo build --release -p iiif-server > /dev/null
 
 ours_start() {
-    ./target/release/iiif-server serve "${gen}" --bind "127.0.0.1:${OUR_PORT}" \
-        --max-width 20000 --max-height 20000 --max-area 400000000 \
-        >/dev/null 2>&1 &
-    ours_pid=$!
-    for _ in $(seq 1 100); do
-        curl -sf "http://127.0.0.1:${OUR_PORT}/healthz" >/dev/null 2>&1 && return 0
-        sleep 0.1
-    done
-    echo "iiif-server failed to start" >&2
-    return 1
+  ./target/release/iiif-server serve "${gen}" --bind "127.0.0.1:${OUR_PORT}" \
+    --max-width 20000 --max-height 20000 --max-area 400000000 \
+    > /dev/null 2>&1 &
+  ours_pid=$!
+  for _ in $(seq 1 100); do
+    curl -sf "http://127.0.0.1:${OUR_PORT}/healthz" > /dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  echo "iiif-server failed to start" >&2
+  return 1
 }
 ours_stop() {
-    [ "${ours_pid}" = 0 ] && return 0
-    kill "${ours_pid}" 2>/dev/null || true
-    wait "${ours_pid}" 2>/dev/null || true
-    ours_pid=0
+  [ "${ours_pid}" = 0 ] && return 0
+  kill "${ours_pid}" 2> /dev/null || true
+  wait "${ours_pid}" 2> /dev/null || true
+  ours_pid=0
 }
 
 cant_start() { # cant_start <properties-file>
-    docker run -d --name bench-cant -m 4g -p "127.0.0.1:${CANT_PORT}:8182" \
-        -v "${gen}:/imageroot:ro" \
-        -v "$1:/opt/cantaloupe/cantaloupe.properties:ro" \
-        "${IMAGE}" \
-        java -Xmx2g -Dcantaloupe.config=/opt/cantaloupe/cantaloupe.properties \
-        -jar /opt/cantaloupe/cantaloupe.jar >/dev/null
-    for _ in $(seq 1 180); do
-        curl -sf "http://127.0.0.1:${CANT_PORT}/health" >/dev/null 2>&1 && return 0
-        sleep 0.5
-    done
-    echo "cantaloupe failed to start" >&2
-    return 1
+  docker run -d --name bench-cant -m 4g -p "127.0.0.1:${CANT_PORT}:8182" \
+    -v "${gen}:/imageroot:ro" \
+    -v "$1:/opt/cantaloupe/cantaloupe.properties:ro" \
+    "${IMAGE}" \
+    java -Xmx2g -Dcantaloupe.config=/opt/cantaloupe/cantaloupe.properties \
+    -jar /opt/cantaloupe/cantaloupe.jar > /dev/null
+  for _ in $(seq 1 180); do
+    curl -sf "http://127.0.0.1:${CANT_PORT}/health" > /dev/null 2>&1 && return 0
+    sleep 0.5
+  done
+  echo "cantaloupe failed to start" >&2
+  return 1
 }
-cant_stop() { docker rm -f bench-cant >/dev/null 2>&1 || true; }
+cant_stop() { docker rm -f bench-cant > /dev/null 2>&1 || true; }
 
 cleanup() {
-    ours_stop
-    cant_stop
+  ours_stop
+  cant_stop
 }
 trap cleanup EXIT
 ours_pid=0
 cant_stop # remove any leftover container from an aborted run
 
 platform=$(uname -sm) || platform=unknown
-cpu=$(sysctl -n machdep.cpu.brand_string 2>/dev/null) || cpu=""
+cpu=$(sysctl -n machdep.cpu.brand_string 2> /dev/null) || cpu=""
 if [ -z "${cpu}" ] && [ -r /proc/cpuinfo ]; then
-    cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1) || cpu=""
+  cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1) || cpu=""
 fi
 echo "hardware: ${platform}, ${cpu:-unknown CPU}"
 echo "warm reps: ${REPS}; cold restarts: ${COLD_REPS}"
@@ -89,7 +89,7 @@ echo "cantaloupe: ${IMAGE}, -Xmx2g, 4g container, OpenJpegProcessor for jp2"
 echo
 
 bench_pass() { # bench_pass <label> <base-url> <mode: warm|cold>
-    uv run --quiet --with numpy python - "$@" "${REPS}" <<'EOF'
+  uv run --quiet --with numpy python - "$@" "${REPS}" << 'EOF'
 import sys
 import time
 import urllib.error
@@ -152,40 +152,40 @@ EOF
 }
 
 if [ "${PASS}" = all ] || [ "${PASS}" = warm-ours ]; then
-    echo "=== warm pass: iiif-server ==="
-    ours_start
-    bench_pass "ours-warm" "http://127.0.0.1:${OUR_PORT}" warm
-    ours_stop
+  echo "=== warm pass: iiif-server ==="
+  ours_start
+  bench_pass "ours-warm" "http://127.0.0.1:${OUR_PORT}" warm
+  ours_stop
 fi
 
 if [ "${PASS}" = all ] || [ "${PASS}" = warm-cant-nocache ]; then
-    echo "=== warm pass: cantaloupe, derivative cache OFF ==="
-    cant_start "${CONF}/eval-cache-off.properties"
-    bench_pass "cant-nocache-warm" "http://127.0.0.1:${CANT_PORT}" warm
-    cant_stop
+  echo "=== warm pass: cantaloupe, derivative cache OFF ==="
+  cant_start "${CONF}/eval-cache-off.properties"
+  bench_pass "cant-nocache-warm" "http://127.0.0.1:${CANT_PORT}" warm
+  cant_stop
 fi
 
 if [ "${PASS}" = all ] || [ "${PASS}" = warm-cant-cache ]; then
-    echo "=== warm pass: cantaloupe, derivative cache ON (cache hits) ==="
-    cant_start "${CONF}/eval-cache-on.properties"
-    bench_pass "cant-cache-warm" "http://127.0.0.1:${CANT_PORT}" warm
-    cant_stop
+  echo "=== warm pass: cantaloupe, derivative cache ON (cache hits) ==="
+  cant_start "${CONF}/eval-cache-on.properties"
+  bench_pass "cant-cache-warm" "http://127.0.0.1:${CANT_PORT}" warm
+  cant_stop
 fi
 
 if [ "${PASS}" = all ] || [ "${PASS}" = cold ]; then
-    echo "=== cold pass (${COLD_REPS} fresh starts each) ==="
-    i=1
-    while [ "${i}" -le "${COLD_REPS}" ]; do
-        ours_start
-        bench_pass "ours-cold-${i}" "http://127.0.0.1:${OUR_PORT}" cold
-        ours_stop
-        i=$((i + 1))
-    done
-    i=1
-    while [ "${i}" -le "${COLD_REPS}" ]; do
-        cant_start "${CONF}/eval-cache-off.properties"
-        bench_pass "cant-cold-${i}" "http://127.0.0.1:${CANT_PORT}" cold
-        cant_stop
-        i=$((i + 1))
-    done
+  echo "=== cold pass (${COLD_REPS} fresh starts each) ==="
+  i=1
+  while [ "${i}" -le "${COLD_REPS}" ]; do
+    ours_start
+    bench_pass "ours-cold-${i}" "http://127.0.0.1:${OUR_PORT}" cold
+    ours_stop
+    i=$((i + 1))
+  done
+  i=1
+  while [ "${i}" -le "${COLD_REPS}" ]; do
+    cant_start "${CONF}/eval-cache-off.properties"
+    bench_pass "cant-cold-${i}" "http://127.0.0.1:${CANT_PORT}" cold
+    cant_stop
+    i=$((i + 1))
+  done
 fi

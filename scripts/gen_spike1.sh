@@ -19,7 +19,7 @@ trap 'rm -rf "${tmp}"' EXIT
 
 # Smooth photographic-ish pattern: JPEG-friendly (bounded error), position
 # identifiable (gradients + low-frequency color waves).
-python3 - "${tmp}/smooth.ppm" <<'EOF'
+python3 - "${tmp}/smooth.ppm" << 'EOF'
 import math
 import sys
 
@@ -37,24 +37,24 @@ with open(sys.argv[1], "wb") as f:
 EOF
 
 vips() {
-    mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips "$@"
+  mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips "$@"
 }
 
 vips tiffsave "${tmp}/smooth.ppm" "${gen}/spike1_ycbcr420.tif" \
-    --tile --tile-width 256 --tile-height 256 --pyramid \
-    --compression jpeg --Q 75
+  --tile --tile-width 256 --tile-height 256 --pyramid \
+  --compression jpeg --Q 75
 
 vips tiffsave "${tmp}/smooth.ppm" "${gen}/spike1_ycbcr444.tif" \
-    --tile --tile-width 256 --tile-height 256 --pyramid \
-    --compression jpeg --Q 95
+  --tile --tile-width 256 --tile-height 256 --pyramid \
+  --compression jpeg --Q 95
 
 # Golden decodes of the SAME JPEG-TIFFs via libvips/libjpeg: level-0
 # regions crossing tile boundaries, written as raw PPM.
 for name in ycbcr420 ycbcr444; do
-    vips crop "${gen}/spike1_${name}.tif" "${tmp}/crop.v" 192 192 384 384
-    vips ppmsave "${tmp}/crop.v" "${gen}/spike1_golden_${name}_192_192_384_384.ppm"
-    vips crop "${gen}/spike1_${name}.tif" "${tmp}/crop2.v" 0 0 256 256
-    vips ppmsave "${tmp}/crop2.v" "${gen}/spike1_golden_${name}_0_0_256_256.ppm"
+  vips crop "${gen}/spike1_${name}.tif" "${tmp}/crop.v" 192 192 384 384
+  vips ppmsave "${tmp}/crop.v" "${gen}/spike1_golden_${name}_192_192_384_384.ppm"
+  vips crop "${gen}/spike1_${name}.tif" "${tmp}/crop2.v" 0 0 256 256
+  vips ppmsave "${tmp}/crop2.v" "${gen}/spike1_golden_${name}_0_0_256_256.ppm"
 done
 
 echo "spike1 fixtures:"
