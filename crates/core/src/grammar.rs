@@ -780,7 +780,7 @@ mod tests {
         assert_eq!(Quality::parse("default").unwrap(), Quality::Default);
         assert_eq!(Quality::parse("bitonal").unwrap(), Quality::Bitonal);
         assert!(Quality::parse("native").is_err()); // v2 name, not v3
-        assert!(Quality::parse("grey").is_err());
+        assert!(Quality::parse("grey").is_err()); // codespell:ignore grey
         assert_eq!(Format::parse("jpg").unwrap(), Format::Jpg);
         assert_eq!(Format::parse("webp").unwrap(), Format::Webp);
         assert!(Format::parse("jpeg").is_err());

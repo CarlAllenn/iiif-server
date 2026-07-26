@@ -1,0 +1,10 @@
+---
+# Canonical actionlint config — lives at .github/actionlint.yaml in each
+# repo. config-variables: [] is the strict setting: any use of the vars.
+# context fails until the variable is explicitly listed here (no repo uses
+# vars. today). shellcheck integration picks up the mise-pinned binary from
+# PATH automatically; pyflakes is not installed because no workflow uses
+# shell: python (record the reason here if that changes).
+self-hosted-runner:
+  labels: []
+config-variables: []

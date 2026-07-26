@@ -1,2 +1,4 @@
-# Max enforcement: all optional checks on, nothing disabled.
+# Max enforcement: all optional checks on, nothing disabled; sourced files
+# are followed and checked rather than skipped.
 enable=all
+external-sources=true

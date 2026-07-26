@@ -1,18 +1,23 @@
 {
   // Max enforcement: every rule on. Line length is raised to 120 to match
-  // yamllint; tables and code blocks are exempt (spec tables are wide by
-  // nature and reflowing them destroys them).
+  // yamllint; tables and code blocks are exempt (they can't be reflowed
+  // without destroying them).
   "config": {
     "default": true,
     "line-length": {
       "line_length": 120,
+      "heading_line_length": 120,
       "tables": false,
       "code_blocks": false
     }
   },
   "globs": ["**/*.md"],
+  // Build outputs and vendored trees are already gitignored per repo, so
+  // honoring .gitignore keeps this file identical everywhere with no
+  // repo-local ignore list.
+  "gitignore": true,
   // .git/**: the glob engine traverses VCS internals, and the lefthook
   // remote cache (.git/info/lefthook-remotes/) contains markdown that isn't
-  // ours to lint.
-  "ignores": ["target/**", "node_modules/**", ".git/**"]
+  // ours to lint; .claude/** is machine-local session state.
+  "ignores": [".git/**", ".claude/**"]
 }

@@ -129,7 +129,7 @@ tasks:
       - mise.lock
     cmds:
       - actionlint
-      - zizmor --min-severity low .github/workflows/
+      - zizmor --persona=pedantic --offline .github/
 
   lint:shell:
     desc: shellcheck + shfmt (check mode) over shell scripts
@@ -169,7 +169,7 @@ tasks:
       - cargo test --release -p iiif-core --test spike2_j2k_vs_openjpeg -- --ignored --nocapture
 
   spike:objstore:
-    desc: "Object-store range-read profile vs Docker MinIO (Hetzner = env swap)"
+    desc: Object-store range-read profile vs Docker MinIO (Hetzner = env swap)
     cmds:
       - scripts/spike_objstore.sh
 
@@ -179,7 +179,7 @@ tasks:
       - scripts/spike_alloc.sh
 
   fuzz:
-    desc: "Fuzz all targets briefly (nightly + cargo-fuzz); FUZZ_SECONDS to extend"
+    desc: Fuzz all targets briefly (nightly + cargo-fuzz); FUZZ_SECONDS to extend
     vars:
       FUZZ_SECONDS: '{{.FUZZ_SECONDS | default "60"}}'
     cmds:

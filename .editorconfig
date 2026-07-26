@@ -6,13 +6,18 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = space
+# The one sanctioned variance point: 4 in the Rust repos, 2 elsewhere.
 indent_size = 4
 
+# Config formats are 2-space everywhere regardless of the [*] default; the
+# glob must cover jsonc and the extensionless .yamllint (edtf diverged on
+# exactly this once).
 [{*.{yml,yaml,toml,json,jsonc},.yamllint}]
 indent_size = 2
 
 # Matches the canonical shfmt flags in the universal lefthook job
-# (renovate-config lefthook/universal.yml) so ec and shfmt never disagree.
+# (renovate-config lefthook/universal.yml) so ec, flagless `shfmt -d`, and
+# the hook's shfmt never disagree.
 [*.sh]
 indent_size = 2
 switch_case_indent = true
@@ -24,3 +29,5 @@ indent_size = unset
 
 [Makefile]
 indent_style = tab
+
+# Repo-local blocks (e.g. [*.sql] indent_size = 4) go below this line.
