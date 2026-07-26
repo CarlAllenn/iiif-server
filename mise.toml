@@ -11,9 +11,9 @@ locked_verify_provenance = true # re-verify provenance on install even when the 
 # resolution, and ad-hoc `mise x tool@ver` installs of unpinned tools fail
 # (mechanical no-ad-hoc enforcement).
 locked = true
-# Never install a release younger than 3 days (supply-chain cooldown; matches
-# the Renovate preset's minimumReleaseAge). pipx:/npm: forward this into
-# transitive dependency resolution.
+# Never install a release younger than 3 days (supply-chain cooldown; Renovate
+# holds automerged tool bumps a further 14 days on top). pipx:/npm: forward
+# this into transitive dependency resolution.
 minimum_release_age = "72h"
 # Dev Mac + CI runners; the default would also lock musl/windows we never target.
 lockfile_platforms = ["macos-arm64", "linux-x64", "linux-arm64"]
