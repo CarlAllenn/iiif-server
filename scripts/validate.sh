@@ -36,6 +36,9 @@ done
 
 cd "$(dirname "$0")/.."
 root_dir=$(pwd)
+# Fixture tools (libvips, libmagic) — mise exec auto-installs, but the
+# mise-where lookup below does not, so install explicitly (idempotent).
+mise --cd "${root_dir}/tools/fixtures" install --quiet
 gen=${root_dir}/tests/fixtures/generated
 mkdir -p "${gen}"
 
