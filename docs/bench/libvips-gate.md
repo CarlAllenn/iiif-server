@@ -102,3 +102,18 @@ outright; zoom-outs, exact grids (26.6 ms — 2.3× *faster* than the
 incumbent) and untiled codestreams are unaffected. The Plan B decision
 (issue #2) now has its numbers and remains open on the upstream
 response to the region-decode bug.
+
+**Resolved (2026-07-26, later the same day):** the region-decode bug
+was root-caused and fixed (fix and analysis on the frames-sg/j2k#62
+thread), and the fallback is removed — partial grids join the fast
+path (28.9 ms on the eval corpus's 28 MP partial master, vs 628 ms
+through the fallback; see the post-fix rerun in
+[cantaloupe-eval.md](cantaloupe-eval.md)). This gate's JP2 row is
+unaffected by that fix — the 8192² master is exact-grid, and a rerun
+on the patched build reproduces ours ≈47 ms p50 (2.8× this run;
+run-to-run CLI-floor variance moves the ratio, not our latency). What
+remains of the JP2 miss is raw wavelet-decode throughput vs OpenJPEG —
+the real residue of issue #2 — plus a second, smaller gap surfaced by
+the eval: reduced-resolution decode bottoms out at 1/8, which costs us
+the 165 MP zoom-out case. Both are upstream conversations, not
+fallback problems.

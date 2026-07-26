@@ -20,6 +20,12 @@ fast paths by 2–2.6×, HTJ2K by default (Cantaloupe cannot serve it) —
 Cantaloupe wins by ~10× and, on very large masters, by our forfeit.
 Every loss in this document has the same root cause.
 
+**Update, same day:** that root cause is fixed. The tables below stand
+as the pre-fix record; the [post-fix rerun](#post-fix-rerun-2026-07-26-patched-j2k)
+measures the same corpus with the j2k#62 fix applied and the fallback
+removed — every former loss is now a win or parity, and the ≈134 MP
+refusal is gone.
+
 ## The contenders
 
 **iiif-server**: this repo at `c1d3099`, release build, single static
@@ -162,6 +168,63 @@ One number that reframes the whole gate: on the fast path we are
 not merely repair the slow path; it converts every loss in this
 document into a win.
 
+## Post-fix rerun (2026-07-26, patched j2k)
+
+The j2k#62 root cause was found and fixed the same day this eval was
+written (window-origin bookkeeping in the region IDWT; root cause and
+fix on the issue thread). This rerun is the identical corpus, harness,
+hardware, and Cantaloupe image, with two changes on our side: `j2k` is
+the patched build carrying the fix, and the decode-full-then-crop
+fallback is **removed** — every tiled JP2/HTJ2K master takes the region
+path regardless of grid. The exact-grid control (26.7 ms vs 26.6 ms
+pre-fix) and the Cantaloupe columns reproduce the original run within
+noise, so the two tables are directly comparable.
+
+Warm, derivative-cache-off, p50/p99 in ms, 30 reps:
+
+| case | ours p50 | Cantaloupe p50 | ratio | ours p99 | Cantaloupe p99 |
+| --- | --- | --- | --- | --- | --- |
+| TIFF pyr deflate, native tile | **3.5** | 21.0 | 0.17× | 3.8 | 27.7 |
+| TIFF pyr deflate, full → 512 | **9.4** | 25.1 | 0.38× | 11.0 | 41.4 |
+| TIFF pyr JPEG, native tile | **2.8** | 18.0 | 0.15× | 3.0 | 21.8 |
+| JP2 partial lossless, native tile | **28.9** | 63.7 | 0.45× | 40.4 | 71.0 |
+| JP2 partial lossless, full → 512 | **57.6** | 90.6 | 0.64× | 109.9 | 139.1 |
+| JP2 partial 20:1 lossy, native tile | **21.4** | 40.0 | 0.54× | 35.5 | 101.8 |
+| JP2 exact-grid lossless, native tile | **26.7** | 62.8 | 0.43× | 28.9 | 77.7 |
+| JP2 untiled+precincts, native tile | **33.2** | 88.2 | 0.38× | 92.7 | 125.1 |
+| JP2 165 MP partial, native tile | 90.8 | **85.7** | 1.06× | 96.6 | 93.4 |
+| JP2 165 MP partial, full → 512 | 308.2 | **189.8** | 1.62× | 333.8 | 228.2 |
+| HTJ2K partial lossless, native tile | **22.3** | *501* | — | 25.6 | — |
+| HTJ2K partial lossless, full → 512 | **24.6** | *501* | — | 25.4 | — |
+| HTJ2K 20:1 lossy, native tile | **17.5** | *501* | — | 18.3 | — |
+| HTJ2K 165 MP, native tile | **89.9** | *501* | — | 145.2 | — |
+| plain JPEG 28 MP, full → 512 | **138.6** | 302.8 | 0.46× | 140.7 | 374.5 |
+| plain JPEG 28 MP, native tile | **94.7** | 115.4 | 0.82× | 98.4 | 121.6 |
+
+What changed, row by row:
+
+- **JP2 partial native tile: 628 ms → 28.9 ms** (21.7×). Partial and
+  exact grids are now statistically indistinguishable (28.9 vs
+  26.7 ms) — the grid shape has stopped mattering, which is the
+  fix working as designed.
+- **HTJ2K partial native tile: 315 ms → 22.3 ms.** The HTJ2K losses
+  were the same fallback; they disappear with it.
+- **JP2 165 MP native tile: refusal → 90.8 ms.** With no whole-image
+  decode there is nothing for the 512 MiB cap to refuse; the former
+  hard 500 is now near-parity with the incumbent (90.8 vs 85.7 ms).
+  The fallback-driven 2.5 GB memory-spike scenario is likewise gone —
+  region decodes never materialize the full image.
+- **The one remaining loss** is 165 MP `full/512,` (308 vs 190 ms):
+  our reduced-resolution decode bottoms out at 1/8 (the decode API's
+  current ceiling), so we decode ~2048 px wide and resample, while
+  OpenJPEG walks deeper into the resolution ladder. This is unrelated
+  to #62 — it is the natural next upstream conversation.
+
+Cold behaviour is unchanged in shape (ours cold ≈ warm; first-request
+partial-grid native tile 34.4 ms vs Cantaloupe's 84.9 ms). Cache-on
+stays as documented above — a derivative cache answers repeat traffic
+for any origin latency, and is orthogonal to these numbers.
+
 ## Conformance
 
 Official IIIF validators (pinned at `1740893f`), level 2, both API
@@ -277,6 +340,16 @@ A fourth lever exists regardless of the gate: `iiif-server check`
 already advises HTJ2K transcode; the same advice can note that
 grid-aligned tiling (or untiled-with-precincts) avoids the fallback
 entirely on current `j2k` — an ingest-time fix operators control today.
+
+**Post-fix update:** option 3's end state materialized the same day —
+see the [post-fix rerun](#post-fix-rerun-2026-07-26-patched-j2k). With
+the fix applied and the fallback removed, every row of the warm table
+is a win or near-parity except the 165 MP zoom-out (a different,
+smaller gap: the 1/8 reduced-resolution ceiling). The gate decision
+(issue #2) reduces to consuming the fix — upstream merge or a pinned
+fork patch — rather than choosing between misses; the fourth lever
+(ingest advice to avoid the fallback) is moot along with the fallback
+itself.
 
 ## Reproducing
 

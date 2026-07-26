@@ -28,3 +28,12 @@ unsafe_code = "forbid"
 # Max enforcement, no exemptions: the whole pedantic tier is on and the code
 # complies — there are no `allow` attributes in this workspace.
 pedantic = { level = "warn", priority = -1 }
+
+# TEMPORARY (issue #21): j2k pinned to our fork carrying the fix for
+# frames-sg/j2k#62 (region decode returned shifted content whenever a
+# back-propagated ROI window kept a left/top margin). Upstream PR:
+# https://github.com/frames-sg/j2k/pull/63. Repoint at the upstream rev
+# when it merges; delete this section (and deny.toml's allow-git entry)
+# when the fix is released. Tracked-class doctrine: no permanent forks.
+[patch.crates-io]
+j2k = { git = "https://github.com/CarlAllenn/j2k", rev = "950a5762a51664d692944005225380c310d04b0f" }

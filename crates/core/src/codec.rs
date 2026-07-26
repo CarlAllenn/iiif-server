@@ -22,10 +22,9 @@ use tiff::ColorType;
 use tiff::decoder::{Decoder, DecodingResult};
 
 /// Decompression-bomb ceiling for masters that must be decoded whole
-/// (plain JPEG/PNG, and the JP2 partial-grid fallback): 268 million
-/// pixels, i.e. under a gigabyte of RGB. Region-decoded masters
-/// (pyramidal TIFF, tiled JP2) are not bounded by this — they never
-/// materialize the full image.
+/// (plain JPEG/PNG): 268 million pixels, i.e. under a gigabyte of RGB.
+/// Region-decoded masters (pyramidal TIFF, tiled JP2) are not bounded by
+/// this — they never materialize the full image.
 ///
 /// Found by fuzzing: a 12-byte PNG header claiming 512×16777335 drove a
 /// 25 GB allocation before any pixel arrived.

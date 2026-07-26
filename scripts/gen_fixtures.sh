@@ -38,12 +38,13 @@ mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips tiffsave "${tm
 # The same pattern as the other supported source formats:
 # lossless tiled JP2 (bit-exact assertions), plain JPEG (lossy,
 # tolerance assertions), plain PNG (exact).
-# 512px tiles on 1024×768: the bottom row is PARTIAL — deliberately, to
-# pin the j2k partial-grid fallback path (upstream region-decode bug).
+# 512px tiles on 1024×768: the bottom row is PARTIAL — deliberately; this
+# is the common real-world grid shape and pins region decode on partial
+# grids (regression coverage for frames-sg/j2k#62).
 mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress \
     -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_pyramid.jp2" \
     -t 512,512 -n 4 >/dev/null
-# 256px tiles divide 1024×768 exactly: the fast region-decode path.
+# 256px tiles divide 1024×768 exactly: the exact-grid control.
 mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- opj_compress \
     -i "${tmp}/pattern.ppm" -o "${root_dir}/tests/fixtures/rgb_exact.jp2" \
     -t 256,256 -n 4 >/dev/null
