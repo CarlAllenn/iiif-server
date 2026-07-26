@@ -16,6 +16,9 @@ use std::sync::Arc;
 pub struct LocalFile {
     file: Arc<File>,
     len: u64,
+    /// Modification time in whole seconds since the epoch — one half of
+    /// the source-version pair the M5 `ETag` hashes.
+    modified_secs: u64,
 }
 
 impl LocalFile {
@@ -25,11 +28,25 @@ impl LocalFile {
     /// [`SourceError::Io`] for any other open/stat failure.
     pub fn open(path: &Path) -> Result<Self, SourceError> {
         let file = File::open(path)?;
-        let len = file.metadata().map_err(SourceError::from)?.len();
+        let metadata = file.metadata().map_err(SourceError::from)?;
+        let len = metadata.len();
+        let modified_secs = metadata
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_secs());
         Ok(Self {
             file: Arc::new(file),
             len,
+            modified_secs,
         })
+    }
+
+    /// The source-version pair (mtime seconds, byte length) that the `ETag`
+    /// definition hashes: cheap, correct, no state.
+    #[must_use]
+    pub fn source_version(&self) -> (u64, u64) {
+        (self.modified_secs, self.len)
     }
 }
 

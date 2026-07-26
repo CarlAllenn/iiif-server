@@ -229,3 +229,52 @@ async fn v2_endpoint_semantics() {
         "v3 upscale still needs ^"
     );
 }
+
+#[tokio::test]
+async fn etag_and_conditional_requests() {
+    use http_body_util::BodyExt;
+    let app = app();
+    // info.json carries a strong ETag + Cache-Control.
+    let response = get(&app, "/iiif/3/rgb_pyramid.tif/info.json").await;
+    let etag = header(&response, "etag").to_owned();
+    assert!(etag.starts_with('"') && etag.ends_with('"'), "strong ETag");
+    assert_eq!(header(&response, "cache-control"), "public, max-age=3600");
+
+    // Revalidation → 304 with the same tag and no body.
+    let req = Request::get("/iiif/3/rgb_pyramid.tif/info.json")
+        .header("if-none-match", &etag)
+        .body(())
+        .unwrap();
+    let response = Arc::clone(&app).handle(req).await;
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(header(&response, "etag"), etag);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(body.is_empty());
+
+    // Image ETags key on the CANONICAL request: two spellings of the same
+    // pixels revalidate against one tag.
+    let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/512,/0/default.jpg").await;
+    let image_etag = header(&response, "etag").to_owned();
+    let req = Request::get("/iiif/3/rgb_pyramid.tif/full/512,384/0/default.jpg")
+        .header("if-none-match", &image_etag)
+        .body(())
+        .unwrap();
+    let response = Arc::clone(&app).handle(req).await;
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_MODIFIED,
+        "canonical-equivalent spelling must revalidate"
+    );
+
+    // A different request has a different tag.
+    let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/256,/0/default.jpg").await;
+    assert_ne!(header(&response, "etag"), image_etag);
+
+    // Wildcard matches.
+    let req = Request::get("/iiif/3/rgb_pyramid.tif/full/512,/0/default.jpg")
+        .header("if-none-match", "*")
+        .body(())
+        .unwrap();
+    let response = Arc::clone(&app).handle(req).await;
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+}

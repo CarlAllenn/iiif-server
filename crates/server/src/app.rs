@@ -5,7 +5,10 @@
 
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::header::{ACCEPT, ALLOW, CONTENT_TYPE, HeaderValue, LINK, LOCATION, RETRY_AFTER, VARY};
+use hyper::header::{
+    ACCEPT, ALLOW, CACHE_CONTROL, CONTENT_TYPE, ETAG, HeaderValue, IF_NONE_MATCH, LINK, LOCATION,
+    RETRY_AFTER, VARY,
+};
 use hyper::{Method, Request, Response, StatusCode};
 use iiif_core::codec::{CodecError, open_master};
 use iiif_core::encode::EncodeError;
@@ -16,12 +19,60 @@ use iiif_core::info::{Info, Limits};
 use iiif_core::pipeline::{self, PipelineError};
 use iiif_core::source::SourceError;
 use iiif_sources::LocalRoot;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 /// JSON-LD media type with the required profile parameter.
 const LD_JSON: &str = "application/ld+json;profile=\"http://iiif.io/api/image/3/context.json\"";
 const LD_JSON_V2: &str = "application/ld+json;profile=\"http://iiif.io/api/image/2/context.json\"";
+
+/// M5 cache posture: strong validator (`ETag`) plus a modest freshness
+/// window — the CDN/proxy in front owns long-lived caching policy; our
+/// job is correct revalidation semantics.
+const CACHE_CONTROL_VALUE: &str = "public, max-age=3600";
+
+/// The M5 `ETag` definition: hash of (source identity, source version
+/// [mtime+size], canonical request URI, binary version). Cheap, correct,
+/// no state. Two `DefaultHasher` passes with domain separation give 128
+/// bits against accidental collision; `DefaultHasher::new()` is
+/// deterministic across runs of the same binary, and the binary version
+/// is part of the input.
+fn etag_for(identifier: &str, source_version: (u64, u64), canonical: &str) -> String {
+    let mut halves = [0u64; 2];
+    for (domain, half) in halves.iter_mut().enumerate() {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        domain.hash(&mut hasher);
+        identifier.hash(&mut hasher);
+        source_version.hash(&mut hasher);
+        canonical.hash(&mut hasher);
+        env!("CARGO_PKG_VERSION").hash(&mut hasher);
+        *half = hasher.finish();
+    }
+    format!("\"{:016x}{:016x}\"", halves[0], halves[1])
+}
+
+/// True when an `If-None-Match` header matches this `ETag` (or is `*`).
+fn if_none_match_hits<B>(req: &Request<B>, etag: &str) -> bool {
+    req.headers()
+        .get(IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|value| {
+            value == "*"
+                || value
+                    .split(',')
+                    .any(|candidate| candidate.trim().trim_start_matches("W/") == etag)
+        })
+}
+
+fn not_modified(etag: &str) -> Response<Full<Bytes>> {
+    Response::builder()
+        .status(StatusCode::NOT_MODIFIED)
+        .header(ETAG, etag)
+        .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
+        .body(Full::new(Bytes::new()))
+        .expect("valid response")
+}
 
 /// The compliance-level profile documents, sent as a Link header on every
 /// image and info.json response (optional feature `profileLinkHeader`).
@@ -121,7 +172,13 @@ impl App {
                 rest,
             } => {
                 let base = self.base_uri(&req);
-                self.image(version, identifier, rest, &base).await
+                let if_none_match = req
+                    .headers()
+                    .get(IF_NONE_MATCH)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_owned);
+                self.image(version, identifier, rest, &base, if_none_match)
+                    .await
             }
             Route::None => error(StatusCode::NOT_FOUND, "no such resource"),
         };
@@ -145,6 +202,15 @@ impl App {
             Ok(source) => source,
             Err(e) => return source_error(&e),
         };
+        // ETag first: a revalidation hit never opens the master at all.
+        let etag = etag_for(
+            id.as_path(),
+            source.source_version(),
+            &format!("{}/info.json", version.prefix()),
+        );
+        if if_none_match_hits(req, &etag) {
+            return not_modified(&etag);
+        }
         let opened = tokio::task::spawn_blocking(move || {
             let file = source
                 .into_std_file()
@@ -179,6 +245,8 @@ impl App {
             .header(CONTENT_TYPE, content_type)
             .header(VARY, "Accept")
             .header(LINK, version.profile_link())
+            .header(ETAG, etag)
+            .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
             .body(Full::new(Bytes::from(body)))
             .expect("valid response")
     }
@@ -189,6 +257,7 @@ impl App {
         raw_id: &str,
         rest: &str,
         base: &str,
+        if_none_match: Option<String>,
     ) -> Response<Full<Bytes>> {
         let Ok(id) = Identifier::decode(raw_id) else {
             return error(StatusCode::NOT_FOUND, "unknown identifier");
@@ -216,6 +285,8 @@ impl App {
             return error(StatusCode::INTERNAL_SERVER_ERROR, "pool closed");
         };
         let limits = self.limits;
+        let source_version = source.source_version();
+        let identifier_path = id.as_path().to_owned();
         let result = tokio::task::spawn_blocking(move || {
             let _permit = permit; // held for the duration of the decode
             let _admission = admission;
@@ -225,18 +296,41 @@ impl App {
             let mut master = open_master(file)?;
             let (full_w, full_h) = master.dimensions();
             let plan = evaluate(&request, full_w, full_h, limits).map_err(ImageFailure::Eval)?;
+            let canonical_path = match v2_spelling {
+                Some(v2) => iiif_core::v2::canonical_path(&plan, &v2),
+                None => plan.canonical_path(),
+            };
+            // ETag is derived from the canonical URI, so every spelling of
+            // the same request revalidates against the same tag — and a
+            // hit skips all pixel work.
+            let etag = etag_for(&identifier_path, source_version, &canonical_path);
+            if let Some(candidates) = &if_none_match
+                && (candidates == "*"
+                    || candidates
+                        .split(',')
+                        .any(|c| c.trim().trim_start_matches("W/") == etag))
+            {
+                return Ok(ImageOutcome::NotModified { etag });
+            }
             let bytes =
                 pipeline::execute(master.as_mut(), &plan).map_err(ImageFailure::Pipeline)?;
-            Ok::<_, ImageFailure>((bytes, plan))
+            Ok::<_, ImageFailure>(ImageOutcome::Fresh {
+                bytes,
+                plan,
+                canonical_path,
+                etag,
+            })
         })
         .await;
         match result {
-            Ok(Ok((bytes, plan))) => {
+            Ok(Ok(ImageOutcome::NotModified { etag })) => not_modified(&etag),
+            Ok(Ok(ImageOutcome::Fresh {
+                bytes,
+                plan,
+                canonical_path,
+                etag,
+            })) => {
                 // Optional features `canonicalLinkHeader` + `profileLinkHeader`.
-                let canonical_path = match v2_spelling {
-                    Some(v2) => iiif_core::v2::canonical_path(&plan, &v2),
-                    None => plan.canonical_path(),
-                };
                 let canonical = format!(
                     "<{base}/{}/{}/{canonical_path}>;rel=\"canonical\", {}",
                     version.prefix(),
@@ -247,6 +341,8 @@ impl App {
                     .status(StatusCode::OK)
                     .header(CONTENT_TYPE, plan.format.media_type())
                     .header(LINK, canonical)
+                    .header(ETAG, etag)
+                    .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
                     .body(Full::new(Bytes::from(bytes)))
                     .expect("valid response")
             }
@@ -266,6 +362,18 @@ impl App {
             .unwrap_or("localhost");
         format!("http://{host}")
     }
+}
+
+/// What the blocking image task produced.
+enum ImageOutcome {
+    /// Revalidation hit: no pixel work was done.
+    NotModified { etag: String },
+    Fresh {
+        bytes: Vec<u8>,
+        plan: iiif_core::eval::Plan,
+        canonical_path: String,
+        etag: String,
+    },
 }
 
 /// Failures on the image path, unified for status mapping.
