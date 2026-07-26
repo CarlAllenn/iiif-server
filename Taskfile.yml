@@ -48,6 +48,12 @@ tasks:
       - scripts/gen_spike1.sh
       - cargo test --release -p iiif-core --test spike1_jpeg_in_tiff -- --ignored --nocapture
 
+  spike2:
+    desc: "SPIKE 2: j2k vs OpenJPEG goldens + region-at-scale perf"
+    cmds:
+      - scripts/gen_spike2.sh
+      - cargo test --release -p iiif-core --test spike2_j2k_vs_openjpeg -- --ignored --nocapture
+
   check:
     desc: Format check + lint + tests (what CI runs)
     cmds:
