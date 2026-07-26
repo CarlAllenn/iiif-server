@@ -7,7 +7,7 @@
 use hyper::service::service_fn;
 use hyper_util::rt::TokioIo;
 use iiif_core::info::Limits;
-use iiif_server::app::App;
+use iiif_server::app::{App, SourceRoot};
 
 /// Bench-decided allocator (docs/spikes/alloc-bench.md): musl's malloc
 /// contends badly under concurrent decode; mimalloc measured ~2×.
@@ -34,10 +34,15 @@ struct Config {
     workers: usize,
     queue_depth: usize,
     public_base: Option<String>,
+    endpoint: Option<String>,
 }
 
 const USAGE: &str = "usage: iiif-server serve <root> [--bind ADDR] [--max-width N] \
-[--max-height N] [--max-area N] [--workers N] [--queue-depth N] [--public-base URL]";
+[--max-height N] [--max-area N] [--workers N] [--queue-depth N] [--public-base URL] \
+[--endpoint URL]
+
+<root> is a local directory or s3://bucket/prefix (credentials from the
+environment; --endpoint for S3-compatible services).";
 
 fn parse_args(args: &[String]) -> Result<Config, String> {
     let mut it = args.iter();
@@ -55,6 +60,7 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
         workers: std::thread::available_parallelism().map_or(4, std::num::NonZero::get),
         queue_depth: 64,
         public_base: None,
+        endpoint: None,
     };
     while let Some(flag) = it.next() {
         let value = it.next().ok_or_else(|| format!("{flag} needs a value"))?;
@@ -76,6 +82,7 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
                 config.queue_depth = value.parse().map_err(|e| format!("--queue-depth: {e}"))?;
             }
             "--public-base" => config.public_base = Some(value.clone()),
+            "--endpoint" => config.endpoint = Some(value.clone()),
             other => return Err(format!("unknown flag {other}\n{USAGE}")),
         }
     }
@@ -117,8 +124,18 @@ fn main() -> ExitCode {
 }
 
 async fn serve(config: Config) -> Result<(), String> {
-    let root = LocalRoot::new(Path::new(&config.root))
-        .map_err(|e| format!("source root {}: {e}", config.root))?;
+    let root = if config.root.starts_with("s3://") {
+        iiif_sources::init_tls();
+        SourceRoot::Object(iiif_sources::ObjectRoot::new(
+            &config.root,
+            config.endpoint.as_deref(),
+        )?)
+    } else {
+        SourceRoot::Local(
+            LocalRoot::new(Path::new(&config.root))
+                .map_err(|e| format!("source root {}: {e}", config.root))?,
+        )
+    };
     let app = Arc::new(App {
         root,
         limits: Limits {

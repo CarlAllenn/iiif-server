@@ -18,7 +18,7 @@ use iiif_core::ident::Identifier;
 use iiif_core::info::{Info, Limits};
 use iiif_core::pipeline::{self, PipelineError};
 use iiif_core::source::SourceError;
-use iiif_sources::LocalRoot;
+use iiif_sources::{LocalFile, LocalRoot, ObjectRoot};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Instant;
@@ -113,9 +113,74 @@ impl Version {
     }
 }
 
+/// Where masters come from: a local directory or an S3-compatible
+/// object store — the prefix→root map whose default size is one.
+pub enum SourceRoot {
+    Local(LocalRoot),
+    Object(ObjectRoot),
+}
+
+/// One resolved master, ready for the sync decoder bridge.
+enum Resolved {
+    Local(LocalFile),
+    Object(Bytes, (u64, u64)),
+}
+
+impl SourceRoot {
+    async fn resolve(&self, id: &Identifier) -> Result<Resolved, SourceError> {
+        match self {
+            Self::Local(root) => root.resolve(id).map(Resolved::Local),
+            Self::Object(root) => root
+                .resolve(id)
+                .await
+                .map(|(bytes, version)| Resolved::Object(bytes, version)),
+        }
+    }
+}
+
+impl Resolved {
+    fn source_version(&self) -> (u64, u64) {
+        match self {
+            Self::Local(file) => file.source_version(),
+            Self::Object(_, version) => *version,
+        }
+    }
+
+    fn into_reader(self) -> std::io::Result<SourceReader> {
+        Ok(match self {
+            Self::Local(file) => SourceReader::File(file.into_std_file()?),
+            Self::Object(bytes, _) => SourceReader::Memory(std::io::Cursor::new(bytes)),
+        })
+    }
+}
+
+/// The sync `Read + Seek` bridge the codecs consume.
+enum SourceReader {
+    File(std::fs::File),
+    Memory(std::io::Cursor<Bytes>),
+}
+
+impl std::io::Read for SourceReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::File(file) => std::io::Read::read(file, buf),
+            Self::Memory(cursor) => std::io::Read::read(cursor, buf),
+        }
+    }
+}
+
+impl std::io::Seek for SourceReader {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        match self {
+            Self::File(file) => std::io::Seek::seek(file, pos),
+            Self::Memory(cursor) => std::io::Seek::seek(cursor, pos),
+        }
+    }
+}
+
 /// Shared server state: source root, limits, and the bounded decode pool.
 pub struct App {
-    pub root: LocalRoot,
+    pub root: SourceRoot,
     pub limits: Limits,
     /// Public `scheme://authority/prefix` used to build `id` values,
     /// derived from the request Host header when absent.
@@ -233,7 +298,7 @@ impl App {
         let Ok(id) = Identifier::decode(raw_id) else {
             return error(StatusCode::NOT_FOUND, "unknown identifier");
         };
-        let source = match self.root.resolve(&id) {
+        let source = match self.root.resolve(&id).await {
             Ok(source) => source,
             Err(e) => return source_error(&e),
         };
@@ -247,10 +312,10 @@ impl App {
             return not_modified(&etag);
         }
         let opened = tokio::task::spawn_blocking(move || {
-            let file = source
-                .into_std_file()
-                .map_err(|e| CodecError::Corrupt(format!("file handle: {e}")))?;
-            open_master(file).map(|master| master.describe())
+            let reader = source
+                .into_reader()
+                .map_err(|e| CodecError::Corrupt(format!("source handle: {e}")))?;
+            open_master(reader).map(|master| master.describe())
         })
         .await;
         let description = match opened {
@@ -307,7 +372,7 @@ impl App {
                 Err(e) => return parse_error(&e),
             },
         };
-        let source = match self.root.resolve(&id) {
+        let source = match self.root.resolve(&id).await {
             Ok(source) => source,
             Err(e) => return source_error(&e),
         };
@@ -325,10 +390,10 @@ impl App {
         let result = tokio::task::spawn_blocking(move || {
             let _permit = permit; // held for the duration of the decode
             let _admission = admission;
-            let file = source.into_std_file().map_err(|e| {
-                ImageFailure::Codec(CodecError::Corrupt(format!("file handle: {e}")))
+            let reader = source.into_reader().map_err(|e| {
+                ImageFailure::Codec(CodecError::Corrupt(format!("source handle: {e}")))
             })?;
-            let mut master = open_master(file)?;
+            let mut master = open_master(reader)?;
             let (full_w, full_h) = master.dimensions();
             let plan = evaluate(&request, full_w, full_h, limits).map_err(ImageFailure::Eval)?;
             let canonical_path = match v2_spelling {

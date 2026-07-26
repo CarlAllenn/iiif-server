@@ -29,16 +29,16 @@ reqwest = { version = "0.13", default-features = false, features = [
   "rustls-no-provider",
   "http2",
 ] }
-
-[dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tempfile = "3"
-# The spike example installs the ring provider explicitly (see the
-# rustls-no-provider note above).
+# The ring provider is installed explicitly at startup (init_tls) —
+# a visible choice, never a transitive default.
 rustls = { version = "0.23", default-features = false, features = [
   "ring",
   "std",
 ] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
 
 [lints]
 workspace = true

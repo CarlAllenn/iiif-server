@@ -3,15 +3,15 @@
 
 use hyper::{Request, StatusCode};
 use iiif_core::info::Limits;
-use iiif_server::app::App;
+use iiif_server::app::{App, SourceRoot};
 use iiif_sources::LocalRoot;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
-fn fixture_root() -> LocalRoot {
+fn fixture_root() -> SourceRoot {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
-    LocalRoot::new(&root).expect("fixture dir exists")
+    SourceRoot::Local(LocalRoot::new(&root).expect("fixture dir exists"))
 }
 
 fn app() -> Arc<App> {

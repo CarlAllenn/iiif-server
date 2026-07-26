@@ -154,3 +154,88 @@ impl LocalRoot {
         LocalFile::open(&canonical)
     }
 }
+
+/// Install the process-wide TLS crypto provider (ring), required before
+/// any HTTPS object-store client is built. Idempotent; the explicit call
+/// keeps the provider choice visible (see the Cargo.toml note and
+/// docs/spikes/objstore-minio.md).
+pub fn init_tls() {
+    // A second call returns Err(already installed) — fine.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
+/// An S3-compatible object-store root: `s3://bucket/prefix` plus an
+/// optional custom endpoint (Hetzner, `MinIO`, …). Masters are fetched
+/// whole — the design spec's acknowledged model for JP2 (`&[u8]` input);
+/// the bounded source-chunk/metadata cache is the recorded refinement.
+pub struct ObjectRoot {
+    store: std::sync::Arc<dyn object_store::ObjectStore>,
+    prefix: String,
+}
+
+impl ObjectRoot {
+    /// Build from an `s3://bucket[/prefix]` URL. Credentials and region
+    /// come from the environment (the credential swamp is `object_store`’s
+    /// job); `endpoint` overrides for S3-compatible services.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the URL is not `s3://bucket[/prefix]` or the client
+    /// cannot be constructed.
+    pub fn new(url: &str, endpoint: Option<&str>) -> Result<Self, String> {
+        let rest = url
+            .strip_prefix("s3://")
+            .ok_or_else(|| format!("not an s3:// URL: {url}"))?;
+        let (bucket, prefix) = match rest.split_once('/') {
+            Some((bucket, prefix)) => (bucket, prefix.trim_end_matches('/').to_owned()),
+            None => (rest, String::new()),
+        };
+        if bucket.is_empty() {
+            return Err("s3 URL has no bucket".to_owned());
+        }
+        let mut builder = object_store::aws::AmazonS3Builder::from_env()
+            .with_bucket_name(bucket)
+            .with_allow_http(true);
+        if let Some(endpoint) = endpoint {
+            builder = builder.with_endpoint(endpoint);
+        }
+        let store = builder.build().map_err(|e| format!("object store: {e}"))?;
+        Ok(Self {
+            store: std::sync::Arc::new(store),
+            prefix,
+        })
+    }
+
+    /// Fetch the master for `id` whole, returning its bytes and the
+    /// source-version pair for the `ETag` (store `ETag` hashed + length).
+    ///
+    /// # Errors
+    ///
+    /// [`SourceError::NotFound`] for missing objects; [`SourceError::Io`]
+    /// for transport failures.
+    pub async fn resolve(&self, id: &Identifier) -> Result<(Bytes, (u64, u64)), SourceError> {
+        use object_store::ObjectStoreExt;
+        let path = if self.prefix.is_empty() {
+            object_store::path::Path::from(id.as_path())
+        } else {
+            object_store::path::Path::from(format!("{}/{}", self.prefix, id.as_path()))
+        };
+        let result = self.store.get(&path).await.map_err(|e| match e {
+            object_store::Error::NotFound { .. } => SourceError::NotFound,
+            other => SourceError::Io(std::io::Error::other(other)),
+        })?;
+        let meta = result.meta.clone();
+        let bytes = result
+            .bytes()
+            .await
+            .map_err(|e| SourceError::Io(std::io::Error::other(e)))?;
+        let version_hash = {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            meta.e_tag.hash(&mut hasher);
+            meta.last_modified.timestamp().hash(&mut hasher);
+            hasher.finish()
+        };
+        Ok((bytes, (version_hash, meta.size)))
+    }
+}

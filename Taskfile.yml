@@ -64,6 +64,11 @@ tasks:
     cmds:
       - scripts/spike_alloc.sh
 
+  e2e:s3:
+    desc: End-to-end object-store serving vs Docker MinIO (pixel-verified)
+    cmds:
+      - scripts/e2e_s3.sh
+
   check:
     desc: Format check + lint + tests (what CI runs)
     cmds:
