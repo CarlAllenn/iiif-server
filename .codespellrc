@@ -2,8 +2,10 @@
 # Max enforcement: hidden files and filenames are checked, and the builtin
 # dictionary set is widened beyond the default clear,rare. 'code' and
 # 'names' stay off — they flag identifiers (uint, proper names) that are
-# legitimate in codebases by design (README.md in templates/linters/).
-builtin = clear,rare,informal,usage,en-GB_to_en-US
+# legitimate in codebases by design; dialect dictionaries off — the house
+# dialect is en-GB and codespell has no en-US->en-GB dictionary (README.md
+# in templates/linters/ of renovate-config).
+builtin = clear,rare,informal,usage
 # Boolean flags take an EMPTY value here: any value ("true") is forwarded
 # to argparse as a stray positional argument and errors.
 check-hidden =
