@@ -37,7 +37,7 @@ jobs:
       - run: task check
 
   validate:
-    name: Official IIIF validator (v3 level 2)
+    name: Official IIIF validators (v3 + v2.1, level 2)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -50,12 +50,12 @@ jobs:
       - run: mise trust tools/fixtures/mise.toml
       - run: |
           set -o pipefail
-          scripts/validate.sh | tee validator-report-v3.txt
+          scripts/validate.sh | tee validator-report.txt
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v7.0.1
         if: always()
         with:
           name: validator-report
-          path: validator-report-*.txt
+          path: validator-report.txt
 
   msrv:
     name: MSRV check (Rust 1.96)
