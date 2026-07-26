@@ -3,7 +3,8 @@
 #
 # Fully synthetic, mirroring common digitization profiles (issue #1): a
 # typical scan at 6500×4300 whose 1024px tile grid does NOT divide the
-# dimensions (the partial-grid fallback path, frames-sg/j2k#62), an
+# dimensions (the common real-world grid shape, and regression
+# coverage for frames-sg/j2k#62), an
 # exact-grid control at 6144×4096, an untiled-with-precincts codestream,
 # a large master at 15000×11000, and HTJ2K variants encoded with OpenJPH
 # — an encoder independent of both servers' decoders.
