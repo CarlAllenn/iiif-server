@@ -12,7 +12,8 @@
 set -eu
 
 cd "$(dirname "$0")/.."
-gen=tests/fixtures/generated
+root_dir=$(pwd)
+gen=${root_dir}/tests/fixtures/generated
 mkdir -p "${gen}"
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT
@@ -20,7 +21,7 @@ trap 'rm -rf "${tmp}"' EXIT
 opj() {
     tool=$1
     shift
-    mise exec conda:openjpeg -- "${tool}" "$@"
+    mise --cd "${root_dir}/tools/fixtures" exec conda:openjpeg -- "${tool}" "$@"
 }
 
 if [ ! -f "${gen}/spike2_lossless.jp2" ] || [ ! -f "${gen}/spike2_lossy.jp2" ]; then

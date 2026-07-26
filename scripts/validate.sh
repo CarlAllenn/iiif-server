@@ -35,7 +35,8 @@ while [ $# -gt 0 ]; do
 done
 
 cd "$(dirname "$0")/.."
-gen=tests/fixtures/generated
+root_dir=$(pwd)
+gen=${root_dir}/tests/fixtures/generated
 mkdir -p "${gen}"
 
 # 1. Reference image, digest-verified.
@@ -49,7 +50,7 @@ fi
 
 # 2. Convert to the pyramidal TIFF the server serves.
 if [ ! -f "${gen}/validation.tif" ]; then
-    mise exec conda:libvips -- vips tiffsave \
+    mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips tiffsave \
         "${gen}/${REF_NAME}.png" "${gen}/validation.tif" \
         --tile --tile-width 256 --tile-height 256 \
         --pyramid --compression deflate
@@ -73,7 +74,7 @@ done
 # console script's own `#!/bin/sh` shebang would strip DYLD_* through
 # macOS SIP, so we run the interpreter directly on the script instead of
 # exec'ing the script.
-libmagic_dir="$(mise where conda:libmagic)/lib"
+libmagic_dir="$(mise --cd "${root_dir}/tools/fixtures" where conda:libmagic)/lib"
 venv="${gen}/validator-venv"
 if [ ! -x "${venv}/bin/python" ]; then
     uv venv --quiet "${venv}"

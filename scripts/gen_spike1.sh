@@ -11,7 +11,8 @@
 set -eu
 
 cd "$(dirname "$0")/.."
-gen=tests/fixtures/generated
+root_dir=$(pwd)
+gen=${root_dir}/tests/fixtures/generated
 mkdir -p "${gen}"
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT
@@ -36,7 +37,7 @@ with open(sys.argv[1], "wb") as f:
 EOF
 
 vips() {
-    mise exec conda:libvips -- vips "$@"
+    mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips "$@"
 }
 
 vips tiffsave "${tmp}/smooth.ppm" "${gen}/spike1_ycbcr420.tif" \

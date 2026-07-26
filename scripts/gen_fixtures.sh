@@ -7,11 +7,12 @@
 # (r = x mod 256, g = y mod 256, b marks the 256px block) — so tests can
 # assert exact pixel values at any position.
 #
-# Requires: python3, and libvips via `mise exec conda:libvips`.
+# Requires: python3, and libvips (pinned in tools/fixtures/mise.toml).
 set -eu
 
 cd "$(dirname "$0")/.."
-mkdir -p tests/fixtures
+root_dir=$(pwd)
+mkdir -p "${root_dir}/tests/fixtures"
 tmp=$(mktemp -d)
 trap 'rm -rf "${tmp}"' EXIT
 
@@ -29,11 +30,11 @@ with open(sys.argv[1], "wb") as f:
 EOF
 
 # Deflate-compressed tiled pyramid: the M0 committed master.
-mise exec conda:libvips -- vips tiffsave "${tmp}/pattern.ppm" \
-    tests/fixtures/rgb_pyramid.tif \
+mise --cd "${root_dir}/tools/fixtures" exec conda:libvips -- vips tiffsave "${tmp}/pattern.ppm" \
+    "${root_dir}/tests/fixtures/rgb_pyramid.tif" \
     --tile --tile-width 256 --tile-height 256 \
     --pyramid --compression deflate
 
-shasum -a 256 tests/fixtures/*.tif >tests/fixtures/SHA256SUMS
+cd "${root_dir}" && shasum -a 256 tests/fixtures/*.tif >tests/fixtures/SHA256SUMS
 echo "regenerated:"
-cat tests/fixtures/SHA256SUMS
+cat "${root_dir}/tests/fixtures/SHA256SUMS"
