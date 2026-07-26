@@ -191,20 +191,12 @@ jobs:
           allowed-endpoints: >
             api.github.com:443
             codeload.github.com:443
-            crates.io:443
-            files.pythonhosted.org:443
             github.com:443
-            index.crates.io:443
             mise-versions.jdx.dev:443
             mise.jdx.dev:443
-            nodejs.org:443
             objects.githubusercontent.com:443
-            pypi.org:443
             raw.githubusercontent.com:443
-            registry.npmjs.org:443
             release-assets.githubusercontent.com:443
-            static.crates.io:443
-            static.rust-lang.org:443
             tuf-repo-cdn.sigstore.dev:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -213,6 +205,9 @@ jobs:
         with:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.7.12
+          # Single-purpose job: install only its own tools (canon rule,
+          # templates/ci/README.md).
+          install_args: taplo
       - name: Derive MSRV from Cargo.toml
         run: echo "MSRV=$(taplo get -f Cargo.toml 'workspace.package.rust-version')" >> "$GITHUB_ENV"
       - run: rustup toolchain install "$MSRV" --profile minimal
