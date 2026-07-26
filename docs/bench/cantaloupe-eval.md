@@ -247,8 +247,9 @@ oversights).
 
 **The single-cause structure is the decision-relevant fact.** All
 three Cantaloupe wins are the same defect: `j2k` cannot region-decode
-partial tile grids (frames-sg/j2k#62, filed with reproducer, open,
-no upstream response after ~3 weeks). The fast-path evidence (26.6 ms,
+partial tile grids (frames-sg/j2k#62, filed with a standalone
+reproducer on 2026-07-26 — the same day as this eval; upstream's
+responsiveness is not yet known). The fast-path evidence (26.6 ms,
 2.3× faster than the incumbent's C decoder through a full HTTP stack)
 shows the pure-Rust bet is not the problem; one bug's fallback is.
 What the numbers imply for each gate option (the decision itself is
@@ -267,7 +268,10 @@ issue #2, taken deliberately, not here):
 3. **Wait on j2k#62** is the only option whose end state wins every
    row of every table (partial grids join the 26.6 ms fast path, and
    the >134 MP refusal disappears with the fallback itself). Its risk
-   is entirely in upstream's response time, currently unknown.
+   is entirely in upstream's response time, about which nothing is
+   known yet: the issue was filed the day of this eval. The crate has
+   been actively developed; the honest posture is to give upstream a
+   real response window before treating silence as signal.
 
 A fourth lever exists regardless of the gate: `iiif-server check`
 already advises HTJ2K transcode; the same advice can note that
