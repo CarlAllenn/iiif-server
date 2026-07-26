@@ -220,7 +220,7 @@ What changed, row by row:
   OpenJPEG walks deeper into the resolution ladder. This is unrelated
   to #62 — it is the natural next upstream conversation.
 
-Cold behavior is unchanged in shape (ours cold ≈ warm; first-request
+Cold behaviour is unchanged in shape (ours cold ≈ warm; first-request
 partial-grid native tile 34.4 ms vs Cantaloupe's 84.9 ms). Cache-on
 stays as documented above — a derivative cache answers repeat traffic
 for any origin latency, and is orthogonal to these numbers.
