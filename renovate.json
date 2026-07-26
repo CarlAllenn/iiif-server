@@ -1,7 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices", ":semanticCommits"],
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    ":separateMultipleMajorReleases"
+  ],
   "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
   "lockFileMaintenance": {
     "enabled": true,
     "automerge": true,
@@ -41,6 +46,11 @@
       "description": "Automerge cargo patch/minor once CI is green (tracked class stays visible via the dashboard)",
       "matchManagers": ["cargo"],
       "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge digest and pin-only updates (GitHub Actions SHA bumps)",
+      "matchUpdateTypes": ["digest", "pin", "pinDigest"],
       "automerge": true
     }
   ]
