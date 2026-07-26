@@ -7,6 +7,12 @@ name: ci
     # (no PR is opened unless the branch goes red).
     branches: [main, "renovate/**"]
   pull_request:
+  schedule:
+    # Weekly full gate on main: cargo-deny's advisories check has an input —
+    # the RustSec database — that changes without commits; this catches new
+    # advisories during quiet weeks. Fingerprinted gates restore the .task
+    # cache from the last green run and skip.
+    - cron: "0 6 * * 1"
 
 permissions:
   contents: read
