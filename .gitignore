@@ -1,0 +1,7 @@
+target/
+.DS_Store
+settings.local.json
+# Generated test masters (large; rebuilt by `task fixtures:gen`, verified by digest)
+/tests/fixtures/generated/
+# Spike scratch output (numbers get recorded in docs/spikes/, not committed raw)
+/spikes/out/

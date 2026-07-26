@@ -1,0 +1,47 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices", ":semanticCommits"],
+  "minimumReleaseAge": "3 days",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "automergeType": "branch"
+  },
+  "customManagers": [
+    {
+      "description": "Track mise's own version pinned in the CI workflow",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[^ ]+) depName=(?<depName>\\S+)\\n\\s+version: (?<currentValue>\\S+)"
+      ],
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "versioningTemplate": "loose"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group all mise-managed tool pins",
+      "matchManagers": ["mise"],
+      "groupName": "mise tools"
+    },
+    {
+      "description": "Rust toolchain bumps need a deliberate decision (MSRV)",
+      "matchDepNames": ["rust"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pin-forever class (pure compute, no hostile bytes): majors need a deliberate decision, never forced",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["fast_image_resize", "jpeg-encoder", "gif", "image-webp"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Automerge cargo patch/minor once CI is green (tracked class stays visible via the dashboard)",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    }
+  ]
+}

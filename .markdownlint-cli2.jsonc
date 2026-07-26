@@ -1,0 +1,15 @@
+{
+  // Max enforcement: every rule on. Line length is raised to 120 to match
+  // yamllint; tables and code blocks are exempt (spec tables are wide by
+  // nature and reflowing them destroys them).
+  "config": {
+    "default": true,
+    "line-length": {
+      "line_length": 120,
+      "tables": false,
+      "code_blocks": false
+    }
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["target/**", "node_modules/**"]
+}

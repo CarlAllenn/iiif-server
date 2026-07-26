@@ -1,0 +1,2 @@
+# Max enforcement: all optional checks on, nothing disabled.
+enable=all

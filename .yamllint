@@ -1,0 +1,20 @@
+---
+# Max enforcement: default preset with its warning-level rules raised to
+# errors; run with --strict so nothing passes as "just a warning".
+extends: default
+
+ignore:
+  - target/
+
+rules:
+  comments:
+    level: error
+    # Renovate hardcodes "@<sha> # vX.Y.Z" with one space when digest-pinning;
+    # its style isn't configurable, so the spacing rule accommodates it.
+    min-spaces-from-content: 1
+  truthy:
+    level: error
+  line-length:
+    max: 120
+  document-start:
+    level: error

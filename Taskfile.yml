@@ -1,0 +1,40 @@
+---
+version: "3"
+
+tasks:
+  test:
+    desc: Run the test suite (all crates, all features)
+    cmds:
+      - cargo test --workspace --all-features
+
+  fmt:
+    desc: Format all code
+    cmds:
+      - cargo fmt --all
+      - taplo fmt
+      - shfmt -w .
+
+  lint:
+    desc: All linters, warnings as errors
+    cmds:
+      - cargo clippy --workspace --all-features --all-targets -- -D warnings
+      - cargo deny check
+      - taplo fmt --check
+      - taplo lint
+      - yamllint --strict .
+      - markdownlint-cli2
+      - ec
+      - codespell
+      - actionlint
+      - zizmor --min-severity low .github/workflows/
+      - shfmt -d .
+      - |
+        files=$(shfmt --find .)
+        [ -z "$files" ] || shellcheck $files
+
+  check:
+    desc: Format check + lint + tests (what CI runs)
+    cmds:
+      - cargo fmt --all --check
+      - task: lint
+      - task: test

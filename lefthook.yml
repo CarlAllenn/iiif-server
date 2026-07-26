@@ -1,0 +1,40 @@
+---
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.rs"
+      run: cargo fmt --all --check
+    clippy:
+      glob: "*.rs"
+      run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+    taplo:
+      glob: "*.toml"
+      run: taplo fmt --check && taplo lint
+    deny:
+      glob: "{Cargo.toml,Cargo.lock,deny.toml}"
+      run: cargo deny check
+    yamllint:
+      glob: "*.{yml,yaml}"
+      run: yamllint --strict .
+    markdownlint:
+      glob: "*.md"
+      run: markdownlint-cli2
+    editorconfig:
+      run: ec
+    codespell:
+      run: codespell
+    actionlint:
+      glob: ".github/workflows/*.yml"
+      run: actionlint
+    zizmor:
+      glob: ".github/workflows/*.yml"
+      run: zizmor --min-severity low .github/workflows/
+    shell:
+      glob: "*.sh"
+      run: shfmt -d . && shellcheck {staged_files}
+
+pre-push:
+  commands:
+    test:
+      run: cargo test --workspace --all-features
