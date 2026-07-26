@@ -38,7 +38,7 @@ rustls = { version = "0.23", default-features = false, features = [
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tempfile = "3"
+tempfile = "=3.27.0"
 
 [lints]
 workspace = true
