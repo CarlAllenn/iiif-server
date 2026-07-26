@@ -31,9 +31,9 @@
       "groupName": "mise tools"
     },
     {
-      "description": "Rust toolchain bumps need a deliberate decision (MSRV)",
+      "description": "Rust toolchain gets its own PR, never automerged - merging is the deliberate decision (MSRV)",
       "matchDepNames": ["rust"],
-      "dependencyDashboardApproval": true
+      "automerge": false
     },
     {
       "description": "Pin-forever class (pure compute, no hostile bytes): majors need a deliberate decision, never forced",
