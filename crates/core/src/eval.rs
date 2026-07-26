@@ -226,8 +226,13 @@ fn resolve_size(
         }
         SizeKind::Confined(w, h) => {
             let fit = (f64::from(w) / rw).min(f64::from(h) / rh);
-            let scale = if size.upscale { fit } else { fit.min(1.0) };
-            (round_u32(rw * scale), round_u32(rh * scale))
+            // A confining box strictly larger than the region can only be
+            // satisfied "as large as possible" by upscaling; without the
+            // `^` flag the official validator requires a 400 here.
+            if !size.upscale && fit > 1.0 {
+                return Err(EvalError::UpscaleWithoutFlag);
+            }
+            (round_u32(rw * fit), round_u32(rh * fit))
         }
     };
     let upscales = out_w > region_w || out_h > region_h;
@@ -443,9 +448,12 @@ mod tests {
     fn confined_fits_inside_box() {
         let plan = eval("full/!300,300/0/default.jpg", 6000, 4000).unwrap();
         assert_eq!((plan.out_w, plan.out_h), (300, 200));
-        // Confined never upscales without ^: bigger box → region size.
-        let plan = eval("full/!9000,9000/0/default.jpg", 6000, 4000).unwrap();
-        assert_eq!((plan.out_w, plan.out_h), (6000, 4000));
+        // A confining box larger than the region needs `^` (validator
+        // rule): without it, 400.
+        assert_eq!(
+            eval("full/!9000,9000/0/default.jpg", 6000, 4000).unwrap_err(),
+            EvalError::UpscaleWithoutFlag
+        );
         // With ^ it scales up to the box.
         let plan = eval("full/^!9000,9000/0/default.jpg", 6000, 4000).unwrap();
         assert_eq!((plan.out_w, plan.out_h), (9000, 6000));

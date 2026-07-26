@@ -229,16 +229,18 @@ impl<'p> Route<'p> {
         let Some(rest) = path.strip_prefix("/iiif/3/") else {
             return Self::None;
         };
-        if rest.is_empty() {
-            return Self::None;
-        }
-        match rest.split_once('/') {
-            None => Self::BaseRedirect { identifier: rest },
-            Some((identifier, "info.json")) => Self::InfoJson { identifier },
-            Some((identifier, image_path)) => Self::Image {
+        // Exact segment shapes only. An identifier containing a raw
+        // (unescaped) slash changes the segment count and falls through
+        // to 404, as the spec requires for unescaped special characters.
+        let segments: Vec<&str> = rest.split('/').collect();
+        match segments.as_slice() {
+            [identifier] if !identifier.is_empty() => Self::BaseRedirect { identifier },
+            [identifier, "info.json"] => Self::InfoJson { identifier },
+            [identifier, _region, _size, _rotation, _file] => Self::Image {
                 identifier,
-                rest: image_path,
+                rest: &rest[identifier.len() + 1..],
             },
+            _ => Self::None,
         }
     }
 }

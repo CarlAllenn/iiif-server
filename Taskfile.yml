@@ -32,6 +32,16 @@ tasks:
         files=$(shfmt --find .)
         [ -z "$files" ] || shellcheck $files
 
+  validate:
+    desc: Run the official IIIF validator (v3 level 2) against a local build
+    cmds:
+      - scripts/validate.sh
+
+  fixtures:gen:
+    desc: Regenerate the committed test masters (requires libvips via mise)
+    cmds:
+      - scripts/gen_fixtures.sh
+
   check:
     desc: Format check + lint + tests (what CI runs)
     cmds:

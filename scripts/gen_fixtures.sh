@@ -7,7 +7,7 @@
 # (r = x mod 256, g = y mod 256, b marks the 256px block) — so tests can
 # assert exact pixel values at any position.
 #
-# Requires: python3, and libvips via `mise exec conda:libvips@latest`.
+# Requires: python3, and libvips via `mise exec conda:libvips`.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -29,7 +29,7 @@ with open(sys.argv[1], "wb") as f:
 EOF
 
 # Deflate-compressed tiled pyramid: the M0 committed master.
-mise exec conda:libvips@latest -- vips tiffsave "${tmp}/pattern.ppm" \
+mise exec conda:libvips -- vips tiffsave "${tmp}/pattern.ppm" \
     tests/fixtures/rgb_pyramid.tif \
     --tile --tile-width 256 --tile-height 256 \
     --pyramid --compression deflate

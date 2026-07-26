@@ -23,5 +23,11 @@ uv = "0.11.31"
 "aqua:EmbarkStudios/cargo-deny" = "0.20.2"
 shellcheck = "0.11.0"
 shfmt = "3.13.1"
-node = "26.5.0"                            # runtime for markdownlint-cli2
+
+# Dev-time fixture generation and validation only — never in the product.
+# (The zero-C doctrine governs shipped code; these run at dev/CI time.)
+"conda:libvips" = "8.18.4"         # synthesize pyramidal TIFF masters
+"conda:openjpeg" = "2.5.4"         # JP2 golden reference for SPIKE 2
+"conda:libmagic" = "5.48"          # needed by the IIIF validator's python-magic
+node = "26.5.0"                    # runtime for markdownlint-cli2
 "npm:markdownlint-cli2" = "0.23.1"
