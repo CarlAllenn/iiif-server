@@ -35,18 +35,17 @@ jobs:
         with:
           egress-policy: block
           disable-sudo: true
+          # Minimal cold-cache set: this job installs only zizmor (see
+          # install_args below), so none of the toolchain domains apply.
+          # api.github.com also serves the online audits themselves.
           allowed-endpoints: >
             api.github.com:443
             codeload.github.com:443
-            files.pythonhosted.org:443
             github.com:443
             mise-versions.jdx.dev:443
             mise.jdx.dev:443
-            nodejs.org:443
             objects.githubusercontent.com:443
-            pypi.org:443
             raw.githubusercontent.com:443
-            registry.npmjs.org:443
             release-assets.githubusercontent.com:443
             tuf-repo-cdn.sigstore.dev:443
 
@@ -57,7 +56,9 @@ jobs:
       - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.7.12
+          version: 2026.7.12          # Scanner jobs install only their own tool — a scheduled scanner
+          # must not pay (or egress for) the whole toolchain.
+          install_args: aqua:zizmorcore/zizmor
 
       # The six online audits (known-vulnerable-actions, stale-action-refs,
       # ref-confusion, typosquat-uses, archived-uses, impostor-commit) run
@@ -90,7 +91,9 @@ jobs:
       - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
         with:
           # renovate: datasource=github-releases depName=jdx/mise
-          version: 2026.7.12
+          version: 2026.7.12          # Scanner jobs install only their own tool — a scheduled scanner
+          # must not pay (or egress for) the whole toolchain.
+          install_args: lychee
 
       # Config: lychee.toml at the repo root (canon: templates/lychee/).
       - name: lychee
