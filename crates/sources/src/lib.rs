@@ -33,6 +33,21 @@ impl LocalFile {
     }
 }
 
+impl LocalFile {
+    /// Surrender a plain `std::fs::File` for the sync decoder bridge.
+    /// Falls back to `try_clone` when other handles are still alive.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the `try_clone` failure in the shared-handle case.
+    pub fn into_std_file(self) -> std::io::Result<File> {
+        match Arc::try_unwrap(self.file) {
+            Ok(file) => Ok(file),
+            Err(shared) => shared.try_clone(),
+        }
+    }
+}
+
 impl ByteRangeSource for LocalFile {
     fn read_range(&self, offset: u64, len: u64) -> BoxFuture<'_, Result<Bytes, SourceError>> {
         let file = Arc::clone(&self.file);

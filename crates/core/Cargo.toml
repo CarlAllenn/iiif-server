@@ -11,6 +11,14 @@ publish.workspace = true
 bytes.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Tracked class (parses semi-trusted master bytes; security watch forever)
+tiff = "0.11"
+zune-jpeg = "0.5"
+png = "0.18"
+# Pin-forever class (pure compute, no hostile bytes)
+num-traits = "0.2"
+fast_image_resize = "6"
+jpeg-encoder = "0.7"
 
 [dev-dependencies]
 proptest = "1"
