@@ -1,20 +1,50 @@
 ---
-# Max enforcement: default preset with its warning-level rules raised to
-# errors; run with --strict so nothing passes as "just a warning".
+# Max enforcement: default preset, plus every rule the preset ships disabled
+# turned on unless there's a recorded reason it's off (decision record:
+# templates/linters/README.md in renovate-config). Run with --strict so
+# warnings fail. Off with reasons:
+# document-end (style marker, catches nothing), key-ordering (alphabetical
+# order fights semantic ordering).
 extends: default
 
 ignore:
+  # Canonical: .git/ holds the lefthook remote cache (YAML that isn't ours —
+  # yamllint DOES traverse it, disproving the #3-era assumption); .claude/ is
+  # machine-local session state (may contain whole worktrees of other
+  # checkouts).
+  - .git/
+  - .claude/
+  # Build output.
   - target/
 
 rules:
+  anchors:
+    forbid-undeclared-aliases: true
+    forbid-duplicated-anchors: true
+    forbid-unused-anchors: true
   comments:
     level: error
     # Renovate hardcodes "@<sha> # vX.Y.Z" with one space when digest-pinning;
     # its style isn't configurable, so the spacing rule accommodates it.
     min-spaces-from-content: 1
-  truthy:
+  comments-indentation:
     level: error
+  document-start:
+    level: error
+  empty-values: enable
+  float-values:
+    require-numeral-before-decimal: true
+    forbid-scientific-notation: true
+    forbid-nan: true
+    forbid-inf: true
   line-length:
     max: 120
-  document-start:
+  octal-values: enable
+  quoted-strings:
+    # Semantic-aware: quotes that keep a value a string (e.g. 'on', '1.0')
+    # count as needed and stay; only redundant quoting is flagged.
+    required: only-when-needed
+    quote-type: any
+    check-keys: true
+  truthy:
     level: error

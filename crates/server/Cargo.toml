@@ -18,13 +18,7 @@ bytes.workspace = true
 hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1", features = ["server", "tokio", "http1"] }
 http-body-util = "0.1"
-tokio = { workspace = true, features = [
-  "rt-multi-thread",
-  "net",
-  "macros",
-  "signal",
-  "fs",
-] }
+tokio = { workspace = true, features = ["rt-multi-thread", "net", "macros", "signal", "fs"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Optional allocator: C, but trusted-compute C that never parses hostile

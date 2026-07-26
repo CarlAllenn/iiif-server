@@ -16,25 +16,14 @@ tokio = { workspace = true, features = ["fs", "io-util", "rt"] }
 # signatures — no hostile bytes). Deliberately NOT the full "aws" feature:
 # that pulls aws-lc TLS, and the outbound-TLS crypto-provider choice is an
 # M4 decision recorded in docs/spikes/objstore-minio.md.
-object_store = { version = "0.14", default-features = false, features = [
-  "aws-base",
-  "reqwest",
-  "ring",
-  "fs",
-] }
+object_store = { version = "0.14", default-features = false, features = ["aws-base", "reqwest", "ring", "fs"] }
 # rustls-no-provider: TLS machinery compiles, but the crypto provider is
 # installed explicitly at startup — keeping the provider choice (and its
 # C-in-the-crypto question) a visible decision, not a default.
-reqwest = { version = "0.13", default-features = false, features = [
-  "rustls-no-provider",
-  "http2",
-] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2"] }
 # The ring provider is installed explicitly at startup (init_tls) —
 # a visible choice, never a transitive default.
-rustls = { version = "0.23", default-features = false, features = [
-  "ring",
-  "std",
-] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

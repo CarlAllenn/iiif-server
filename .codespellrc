@@ -1,3 +1,22 @@
 [codespell]
-skip = target,mise.lock,Cargo.lock,./tests/fixtures,./fuzz/corpus,./fuzz/artifacts,./fuzz/target,LICENSE
-ignore-words-list = crate,SIZ
+# Max enforcement: hidden files and filenames are checked, and the builtin
+# dictionary set is widened beyond the default clear,rare. 'code' and
+# 'names' stay off — they flag identifiers (uint, proper names) that are
+# legitimate in codebases by design (README.md in templates/linters/).
+builtin = clear,rare,informal,usage,en-GB_to_en-US
+# Boolean flags take an EMPTY value here: any value ("true") is forwarded
+# to argparse as a stray positional argument and errors.
+check-hidden =
+check-filenames =
+# .git must lead the skip list: check-hidden would otherwise descend it
+# (the lefthook remote cache under .git/info/ contains prose that isn't
+# ours); .claude is machine-local session state. Repo-local entries
+# follow, each with a reason.
+skip = .git,.claude,target,mise.lock,Cargo.lock,./tests/fixtures,./fuzz/corpus,./fuzz/artifacts,./fuzz/target,LICENSE
+# ignore-words-list is repo-local: add the key only when a repo needs it
+# (an empty value is an argparse error), case-sensitive as written in the
+# dictionary, keep minimal.
+# master/masters: archival domain terminology (preservation masters) used
+# throughout the IIIF stack; the 'usage' dictionary suggestion does not
+# apply. SIZ: legacy allowance carried from the pre-canon config.
+ignore-words-list = crate,SIZ,master,masters
