@@ -5,8 +5,7 @@
 
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::body::Incoming;
-use hyper::header::{ACCEPT, ALLOW, CONTENT_TYPE, HeaderValue, LOCATION, RETRY_AFTER, VARY};
+use hyper::header::{ACCEPT, ALLOW, CONTENT_TYPE, HeaderValue, LINK, LOCATION, RETRY_AFTER, VARY};
 use hyper::{Method, Request, Response, StatusCode};
 use iiif_core::codec::{CodecError, TiffPyramid};
 use iiif_core::encode::EncodeError;
@@ -22,6 +21,10 @@ use tokio::sync::Semaphore;
 
 /// JSON-LD media type with the required profile parameter.
 const LD_JSON: &str = "application/ld+json;profile=\"http://iiif.io/api/image/3/context.json\"";
+
+/// The compliance-level profile document, sent as a Link header on every
+/// image and info.json response (optional feature `profileLinkHeader`).
+const PROFILE_LINK: &str = "<http://iiif.io/api/image/3/level2.json>;rel=\"profile\"";
 
 /// Shared server state: source root, limits, and the bounded decode pool.
 pub struct App {
@@ -41,7 +44,12 @@ pub struct App {
 impl App {
     /// Route and answer one request. Infallible at the HTTP layer: every
     /// failure becomes a spec-mandated status.
-    pub async fn handle(self: Arc<Self>, req: Request<Incoming>) -> Response<Full<Bytes>> {
+    ///
+    /// # Panics
+    ///
+    /// Only if `hyper`'s response builder rejects statically valid
+    /// header/status combinations — structurally impossible.
+    pub async fn handle<B>(self: Arc<Self>, req: Request<B>) -> Response<Full<Bytes>> {
         let method = req.method().clone();
         if method == Method::OPTIONS {
             return preflight();
@@ -65,7 +73,10 @@ impl App {
                 Err(_) => error(StatusCode::NOT_FOUND, "unknown identifier"),
             },
             Route::InfoJson { identifier } => self.info_json(identifier, &req).await,
-            Route::Image { identifier, rest } => self.image(identifier, rest).await,
+            Route::Image { identifier, rest } => {
+                let base = self.base_uri(&req);
+                self.image(identifier, rest, &base).await
+            }
             Route::None => error(StatusCode::NOT_FOUND, "no such resource"),
         };
         add_cors(&mut response);
@@ -75,7 +86,7 @@ impl App {
         response
     }
 
-    async fn info_json(&self, raw_id: &str, req: &Request<Incoming>) -> Response<Full<Bytes>> {
+    async fn info_json<B>(&self, raw_id: &str, req: &Request<B>) -> Response<Full<Bytes>> {
         let Ok(id) = Identifier::decode(raw_id) else {
             return error(StatusCode::NOT_FOUND, "unknown identifier");
         };
@@ -116,11 +127,12 @@ impl App {
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, content_type)
             .header(VARY, "Accept")
+            .header(LINK, PROFILE_LINK)
             .body(Full::new(Bytes::from(info.to_json())))
             .expect("valid response")
     }
 
-    async fn image(&self, raw_id: &str, rest: &str) -> Response<Full<Bytes>> {
+    async fn image(&self, raw_id: &str, rest: &str, base: &str) -> Response<Full<Bytes>> {
         let Ok(id) = Identifier::decode(raw_id) else {
             return error(StatusCode::NOT_FOUND, "unknown identifier");
         };
@@ -155,17 +167,26 @@ impl App {
         })
         .await;
         match result {
-            Ok(Ok((bytes, plan))) => Response::builder()
-                .status(StatusCode::OK)
-                .header(CONTENT_TYPE, plan.format.media_type())
-                .body(Full::new(Bytes::from(bytes)))
-                .expect("valid response"),
+            Ok(Ok((bytes, plan))) => {
+                // Optional features `canonicalLinkHeader` + `profileLinkHeader`.
+                let canonical = format!(
+                    "<{base}/iiif/3/{}/{}>;rel=\"canonical\", {PROFILE_LINK}",
+                    id.encoded(),
+                    plan.canonical_path()
+                );
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header(CONTENT_TYPE, plan.format.media_type())
+                    .header(LINK, canonical)
+                    .body(Full::new(Bytes::from(bytes)))
+                    .expect("valid response")
+            }
             Ok(Err(failure)) => failure.into_response(),
             Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "decode task failed"),
         }
     }
 
-    fn base_uri(&self, req: &Request<Incoming>) -> String {
+    fn base_uri<B>(&self, req: &Request<B>) -> String {
         if let Some(base) = &self.public_base {
             return base.clone();
         }

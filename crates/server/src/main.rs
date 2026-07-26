@@ -4,12 +4,16 @@
 //! Near-zero config: `iiif-server serve ./images` just works. The only
 //! deployment-varying values are the numeric limits and pool sizing.
 
-mod app;
-
-use app::App;
 use hyper::service::service_fn;
 use hyper_util::rt::TokioIo;
 use iiif_core::info::Limits;
+use iiif_server::app::App;
+
+/// Bench-decided allocator (docs/spikes/alloc-bench.md): musl's malloc
+/// contends badly under concurrent decode; mimalloc measured ~2×.
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 use iiif_sources::LocalRoot;
 use std::net::SocketAddr;
 use std::path::Path;

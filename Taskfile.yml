@@ -59,6 +59,11 @@ tasks:
     cmds:
       - scripts/spike_objstore.sh
 
+  spike:alloc:
+    desc: "Allocator bench: musl malloc vs mimalloc in a musl container"
+    cmds:
+      - scripts/spike_alloc.sh
+
   check:
     desc: Format check + lint + tests (what CI runs)
     cmds:

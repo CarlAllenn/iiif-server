@@ -27,6 +27,20 @@ tokio = { workspace = true, features = [
 ] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Optional allocator: C, but trusted-compute C that never parses hostile
+# bytes (design spec, Allocator). The M0 bench decides whether it ships.
+mimalloc = { version = "0.1", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+# Bench-decided (docs/spikes/alloc-bench.md): musl's malloc serializes the
+# concurrent decode workload; mimalloc measured ~2x. Trusted-compute C that
+# never parses hostile bytes — the headline stays "zero C parsing
+# untrusted input". Opt out with --no-default-features.
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
 
 [lints]
 workspace = true
