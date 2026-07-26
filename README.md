@@ -56,8 +56,15 @@ validators** run in CI on every push (reports published as artifacts),
 **golden/differential tests** pin pixels against libvips, libjpeg, and
 OpenJPEG — bit-exact where the math says bit-exact — and **property
 tests** cover the grammar (parse↔print round-trips, canonicalization,
-totality). The differential rig has already caught and contained one
-real upstream decoder bug.
+totality). The differential/fuzz rig has caught and contained three
+real defects before any user could hit them — two upstream decoder
+bugs and a 25 GB decompression bomb
+([session report](docs/session-report-2026-07-26.md)).
+
+How this stacks up against the incumbent server — latency,
+conformance, and ops, measured with the same no-subtractions
+methodology and including where the incumbent wins — is in
+[docs/bench/cantaloupe-eval.md](docs/bench/cantaloupe-eval.md).
 
 ## Building and developing
 
