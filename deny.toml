@@ -1,36 +1,137 @@
-# Dependency policy. The workspace itself is AGPL-3.0-only (unpublished, so
-# exempted below); every dependency must be permissive — verified here, forever.
+# Dependency policy. Canonical baseline: renovate-config/templates/cargo-deny/
+# (issue #5, 2026-07-26); per-repo sections filled for this tree. CI runs
+# `cargo deny check -D unmatched-skip` so stale skips/ignores fail.
+# The workspace itself is AGPL-3.0-only (unpublished, so exempted below);
+# every dependency must be permissive — verified here, forever.
+
+[graph]
+# Check the graph with every feature enabled — default feature resolution can
+# hide whole feature-gated subtrees from all four checks.
+all-features = true
+# The platforms we actually build for (mirrors mise lockfile_platforms).
+targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+
 [advisories]
-version = 2
 yanked = "deny"
+unused-ignored-advisory = "deny"
 
 [licenses]
-version = 2
 # Exactly the licenses present in the tree today — extended deliberately,
 # fail-closed, when a new dependency arrives with a new (permissive) one.
 allow = [
   "MIT",
   "Apache-2.0",
-  "Apache-2.0 WITH LLVM-exception",
   "Unicode-3.0",
   # jpeg-encoder is (MIT OR Apache-2.0) AND IJG; IJG is the Independent
   # JPEG Group's permissive notice license (FSF Free/Libre).
   "IJG",
   # The object_store/rustls tree (M4 sources): ring & rustls are ISC,
-  # subtle is BSD-3-Clause, webpki-root-certs data is CDLA-Permissive-2.0.
+  # subtle is BSD-3-Clause.
   "ISC",
   "BSD-3-Clause",
-  "CDLA-Permissive-2.0",
 ]
+unused-allowed-license = "deny"
+unused-license-exception = "deny"
 private = { ignore = true }
 
 [bans]
-multiple-versions = "warn"
+multiple-versions = "deny"
+multiple-versions-include-dev = true
 wildcards = "deny"
+allow-wildcard-paths = true
+# Cross-major ecosystem lag, all reached through a newer sibling already in
+# the tree; each pin is the OLD version, so the entry dies (-D unmatched-skip)
+# the moment the laggard catches up. Audited 2026-07-26.
+skip = [
+  { crate = "crypto-common@0.1.7", reason = "digest 0.10 (via crc-fast) lags the 0.2 line" },
+  { crate = "digest@0.10.7", reason = "crc-fast has not moved to digest 0.11" },
+  { crate = "getrandom@0.2.17", reason = "ring still on the 0.2 line" },
+  { crate = "getrandom@0.3.4", reason = "rand 0.9 (via proptest) still on the 0.3 line" },
+  { crate = "quick-error@1.2.3", reason = "rusty-fork (proptest) still on the 1.x line" },
+  { crate = "rand@0.9.5", reason = "proptest has not moved to rand 0.10" },
+  { crate = "rand_core@0.9.5", reason = "proptest's rand 0.9 tree" },
+  { crate = "syn@2.0.119", reason = "several proc-macro crates lag the syn 3 move" },
+]
+
+[bans.workspace-dependencies]
+duplicates = "deny"
+include-path-dependencies = true
+unused = "deny"
+
+[bans.std-replacements]
+
+[bans.build]
+# Every crate in the tree with a build script or compile-time execution,
+# enumerated from the lockfile (cargo metadata, 2026-07-26). New entries
+# arrive via CI failure -> review -> addition here.
+allow-build-scripts = [
+  "crc32fast",
+  "crossbeam-deque",
+  "crossbeam-epoch",
+  "crossbeam-utils",
+  "crunchy",
+  "generic-array",
+  "getrandom",
+  "httparse",
+  "iana-time-zone-haiku",
+  "icu_normalizer_data",
+  "icu_properties_data",
+  "j2k-codec-math",
+  "jni",
+  "jni-macros",
+  "libc",
+  "libm",
+  "libmimalloc-sys",
+  "nix",
+  "num-traits",
+  "parking_lot_core",
+  "proc-macro2",
+  "quote",
+  "rayon-core",
+  "ring",
+  "rustix",
+  "rustls",
+  "rustversion",
+  "serde",
+  "serde_core",
+  "serde_json",
+  "thiserror",
+  "valuable",
+  "wasm-bindgen",
+  "wasm-bindgen-shared",
+  "wit-bindgen",
+  "zerocopy",
+  "zmij",
+]
+executables = "deny"
+interpreted = "deny"
+enable-builtin-globs = true
+
+# Reviewed script shipments inside compile-time crates (audited 2026-07-26).
+[[bans.build.bypass]]
+crate = "ring"
+# Perl xlate generators for the vendored BoringSSL asm; ring's build.rs runs
+# them to emit platform asm — removing them would mean not building ring.
+allow-globs = ["crypto/**/*.pl"]
+
+[[bans.build.bypass]]
+crate = "libc"
+# Maintainer utility script, never executed by build.rs.
+allow-globs = ["etc/libc-util.py"]
+
+[[bans.build.bypass]]
+crate = "zerocopy"
+# CI/release helper scripts left in the published crate, never executed by
+# build.rs.
+allow-globs = ["ci/**", "*.sh", "*.bat"]
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+required-git-spec = "rev"
+unused-allowed-source = "deny"
+unused-allowed-org = "deny"
 # Temporary (issue #21): the j2k fork carrying the frames-sg/j2k#62 fix,
 # pinned by rev in [patch.crates-io]. Remove with the patch.
 allow-git = ["https://github.com/CarlAllenn/j2k"]

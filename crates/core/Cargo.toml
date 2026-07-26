@@ -10,7 +10,7 @@ publish.workspace = true
 [dependencies]
 bytes.workspace = true
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { workspace = true }
 # Tracked class (parses semi-trusted master bytes; security watch forever)
 tiff = "0.11"
 zune-jpeg = "0.5"

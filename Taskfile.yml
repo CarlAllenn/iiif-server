@@ -61,7 +61,7 @@ tasks:
     # database, which changes without commits — a source-checksum skip is
     # unsound for any security gate. New advisories must turn this red.
     cmds:
-      - cargo deny check
+      - cargo deny check -D unmatched-skip
 
   lint:toml:
     desc: taplo format-check + lint over all TOML

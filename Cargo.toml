@@ -19,6 +19,7 @@ publish = false
 iiif-core = { path = "crates/core", version = "0.0.0" }
 iiif-sources = { path = "crates/sources", version = "0.0.0" }
 bytes = "1"
+serde_json = "1"
 tokio = "1"
 
 [workspace.lints.rust]
