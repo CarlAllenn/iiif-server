@@ -24,7 +24,7 @@ gif = "0.14"
 image-webp = "0.2"
 
 [dev-dependencies]
-proptest = "1"
+proptest = "=1.11.0"
 
 [lints]
 workspace = true
