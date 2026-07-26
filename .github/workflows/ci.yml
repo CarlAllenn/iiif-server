@@ -30,11 +30,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
         with:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.7.12
-      - run: task check
+      - env:
+          # zizmor: enables online audits (known-vulnerable-actions etc.)
+          GH_TOKEN: ${{ github.token }}
+        run: task check
 
   validate:
     name: Official IIIF validators (v3 + v2.1, level 2)
@@ -43,7 +46,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
         with:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.7.12
@@ -58,11 +61,21 @@ jobs:
           path: validator-report.txt
 
   msrv:
-    name: MSRV check (Rust 1.96)
+    # Stable job name (required status check); the version lives only in
+    # Cargo.toml rust-version — derived here, never duplicated. The MSRV
+    # toolchain is a sanctioned exception to the everything-via-mise rule:
+    # deliberately a second rustup toolchain, bumped manually.
+    name: MSRV check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - run: rustup toolchain install 1.96 --profile minimal
-      - run: rustup run 1.96 cargo check --workspace --all-features
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+      - name: Derive MSRV from Cargo.toml
+        run: echo "MSRV=$(taplo get -f Cargo.toml 'workspace.package.rust-version')" >> "$GITHUB_ENV"
+      - run: rustup toolchain install "$MSRV" --profile minimal
+      - run: rustup run "$MSRV" cargo check --workspace --all-features

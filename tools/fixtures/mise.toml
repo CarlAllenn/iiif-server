@@ -3,13 +3,16 @@
 #
 # These live in their own config root because mise's conda backend cannot
 # yet write linux lock entries from a macOS host (`mise lock` 2026.7.12
-# silently records only macos/windows platforms), and the root lockfile
-# runs in locked mode. Compensating controls here: exact version pins and
-# the 72h release cooldown; conda-forge serves checksummed artifacts.
+# silently records only macos/windows platforms), and the root config runs
+# in locked mode (locked = true) which this root must therefore opt out of
+# (an explicit lockfile = false alongside locked = true is a hard error).
+# Compensating controls here: exact version pins and the 72h release
+# cooldown; conda-forge serves checksummed artifacts.
 min_version = "2026.7.12"
 
 [settings]
 lockfile = false
+locked = false
 pin = true
 minimum_release_age = "72h"
 
