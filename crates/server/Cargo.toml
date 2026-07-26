@@ -1,0 +1,32 @@
+[package]
+name = "iiif-server"
+description = "The server binary: hyper 1.x directly on tokio, no web framework."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "iiif-server"
+path = "src/main.rs"
+
+[dependencies]
+iiif-core.workspace = true
+iiif-sources.workspace = true
+bytes.workspace = true
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["server", "tokio", "http1"] }
+http-body-util = "0.1"
+tokio = { workspace = true, features = [
+  "rt-multi-thread",
+  "net",
+  "macros",
+  "signal",
+  "fs",
+] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[lints]
+workspace = true

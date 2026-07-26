@@ -1,0 +1,20 @@
+[package]
+name = "iiif-sources"
+description = "Source backends: local filesystem now, object_store later. Implements the byte-range source trait from iiif-core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+iiif-core.workspace = true
+bytes.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "rt"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
+
+[lints]
+workspace = true

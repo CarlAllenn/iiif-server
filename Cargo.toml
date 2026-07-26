@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/server", "crates/sources"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+# MSRV floor is set by j2k; stated in README, enforced in CI.
+rust-version = "1.96"
+license = "AGPL-3.0-only"
+publish = false
+
+[workspace.dependencies]
+# Explicit version alongside path: cargo-deny's wildcard ban applies to
+# path-only deps too, and it is right — versionless deps break the day a
+# crate is consumed outside the workspace.
+iiif-core = { path = "crates/core", version = "0.0.0" }
+iiif-sources = { path = "crates/sources", version = "0.0.0" }
+bytes = "1"
+tokio = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Max enforcement, no exemptions: the whole pedantic tier is on and the code
+# complies — there are no `allow` attributes in this workspace.
+pedantic = { level = "warn", priority = -1 }

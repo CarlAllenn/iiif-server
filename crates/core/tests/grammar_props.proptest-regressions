@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d460a98101078411fba1d0457d56c317e26e1ca51f2c81bf534882b63b844a05 # shrinks to r = ImageRequest { region: Full, size: Size { upscale: false, kind: Percent(100.1) }, rotation: Rotation { mirror: false, degrees: 0.0 }, quality: Default, format: Jpg }
