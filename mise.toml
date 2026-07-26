@@ -25,8 +25,11 @@ disable_backends = ["asdf", "ubi"]
 # standard `mise install`; without this, .git/hooks/ is empty and the whole
 # enforcement layer silently doesn't exist. Idempotent; lefthook auto-resyncs
 # hooks on every run thereafter.
+# CI-guarded (same convention as lefthook's own npm postinstall): git hooks
+# are meaningless in CI, and installing them there fetches the remote config
+# into .git/, which whole-repo scanners must then be excluded from.
 [hooks]
-postinstall = "lefthook install"
+postinstall = 'test -n "${CI:-}" || lefthook install'
 
 [tools]
 rust = { version = "1.97.1", components = "rustfmt,clippy" }

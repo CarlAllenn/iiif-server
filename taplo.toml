@@ -1,0 +1,5 @@
+# taplo walks the entire tree including .git/ by default. The lefthook
+# remote cache (.git/info/lefthook-remotes/) contains TOML formatted under
+# its own repo's settings, so VCS internals must be excluded or
+# `taplo fmt --check` fails on files that aren't ours.
+exclude = [".git/**"]
