@@ -86,6 +86,16 @@ with real-corpus numbers rather than synthetic ones.
 The JP2 case above uses an 8192² master tiled at 1024 — an exact grid,
 so it exercises the region-decode fast path. Real tiled JP2s rarely
 have grid-aligned dimensions and take the whole-image-decode fallback
-(upstream bug above), which this table does not yet measure. Issue #1
-tracks the realistic-corpus slow-path benchmark; the Plan B decision
-(issue #2) is blocked on those numbers and on the upstream response.
+(upstream bug above), which this table does not measure.
+
+**Measured (2026-07-26):** the slow-path numbers now exist, on a
+realistic synthetic corpus and against the deployed incumbent rather
+than the libvips proxy — see
+[cantaloupe-eval.md](cantaloupe-eval.md), "The partial-grid answer".
+Headlines: partial-grid native-zoom tiles cost 628 ms p50 lossless /
+388 ms lossy at 28 MP (~24× the exact-grid fast path; ~10× Cantaloupe/
+OpenJPEG on the same requests); above ≈134 MP the fallback is refused
+outright; zoom-outs, exact grids (26.6 ms — 2.3× *faster* than the
+incumbent) and untiled codestreams are unaffected. The Plan B decision
+(issue #2) now has its numbers and remains open on the upstream
+response to the region-decode bug.
