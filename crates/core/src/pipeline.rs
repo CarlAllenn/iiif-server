@@ -14,9 +14,6 @@ use std::fmt;
 /// Pipeline failure, split by who caused it.
 #[derive(Debug)]
 pub enum PipelineError {
-    /// Arbitrary (non-quarter) rotation is not implemented yet — HTTP 501
-    /// until the completionist sweep lands it.
-    ArbitraryRotationUnimplemented,
     Codec(CodecError),
     Encode(EncodeError),
     Raster(RasterError),
@@ -26,9 +23,6 @@ pub enum PipelineError {
 impl fmt::Display for PipelineError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ArbitraryRotationUnimplemented => {
-                f.write_str("arbitrary rotation is not implemented")
-            }
             Self::Codec(e) => write!(f, "{e}"),
             Self::Encode(e) => write!(f, "{e}"),
             Self::Raster(e) => write!(f, "{e}"),
@@ -89,7 +83,7 @@ pub fn execute(source: &mut dyn Master, plan: &Plan) -> Result<Vec<u8>, Pipeline
     } else if plan.degrees % 90.0 == 0.0 {
         raster.rotate_quarters((plan.degrees / 90.0).to_u8().unwrap_or(0))
     } else {
-        return Err(PipelineError::ArbitraryRotationUnimplemented);
+        raster.rotate_arbitrary(plan.degrees)
     };
 
     // 5. Encode.
@@ -103,8 +97,11 @@ fn resize(raster: Raster, out_w: u32, out_h: u32) -> Result<Raster, PipelineErro
     }
     let pixel_type = match &raster {
         Raster::Gray8 { .. } => fir::PixelType::U8,
+        Raster::GrayA8 { .. } => fir::PixelType::U8x2,
         Raster::Rgb8 { .. } => fir::PixelType::U8x3,
+        Raster::Rgba8 { .. } => fir::PixelType::U8x4,
     };
+    let channels = raster.channels();
     let (width, height, data) = match raster {
         Raster::Gray8 {
             width,
@@ -112,6 +109,16 @@ fn resize(raster: Raster, out_w: u32, out_h: u32) -> Result<Raster, PipelineErro
             data,
         }
         | Raster::Rgb8 {
+            width,
+            height,
+            data,
+        }
+        | Raster::GrayA8 {
+            width,
+            height,
+            data,
+        }
+        | Raster::Rgba8 {
             width,
             height,
             data,
@@ -127,13 +134,23 @@ fn resize(raster: Raster, out_w: u32, out_h: u32) -> Result<Raster, PipelineErro
         .resize(&src, &mut dst, &options)
         .map_err(|e| PipelineError::Resize(e.to_string()))?;
     let data = dst.into_vec();
-    Ok(match pixel_type {
-        fir::PixelType::U8 => Raster::Gray8 {
+    Ok(match channels {
+        1 => Raster::Gray8 {
             width: out_w,
             height: out_h,
             data,
         },
-        _ => Raster::Rgb8 {
+        2 => Raster::GrayA8 {
+            width: out_w,
+            height: out_h,
+            data,
+        },
+        3 => Raster::Rgb8 {
+            width: out_w,
+            height: out_h,
+            data,
+        },
+        _ => Raster::Rgba8 {
             width: out_w,
             height: out_h,
             data,

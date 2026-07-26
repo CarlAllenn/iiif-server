@@ -286,14 +286,6 @@ impl ImageFailure {
         match self {
             Self::Eval(e) => error(StatusCode::BAD_REQUEST, &e.to_string()),
             Self::Codec(e) => codec_error(&e),
-            Self::Pipeline(PipelineError::ArbitraryRotationUnimplemented) => error(
-                StatusCode::NOT_IMPLEMENTED,
-                "arbitrary rotation is not implemented yet",
-            ),
-            Self::Pipeline(PipelineError::Encode(EncodeError::UnsupportedFormat(f))) => error(
-                StatusCode::BAD_REQUEST,
-                &format!("format {f} is not supported by this build"),
-            ),
             Self::Pipeline(PipelineError::Encode(EncodeError::DimensionsBeyondFormat {
                 ..
             })) => error(StatusCode::BAD_REQUEST, "output too large for this format"),

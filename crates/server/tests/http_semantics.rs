@@ -145,12 +145,12 @@ async fn error_semantics() {
     // Malformed size → 400.
     let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/nope/0/default.jpg").await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    // Arbitrary rotation → 501 until the completionist sweep.
+    // Arbitrary rotation is implemented (canvas grows, corners filled).
     let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/max/45/default.jpg").await;
-    assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
-    // Well-formed but unsupported format today → 400.
+    assert_eq!(response.status(), StatusCode::OK);
+    // The complete output table encodes — webp included (lossless).
     let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/max/0/default.webp").await;
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::OK);
     // Traversal → 404.
     let response = get(&app, "/iiif/3/..%2Fsecret/full/max/0/default.jpg").await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);

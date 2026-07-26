@@ -88,15 +88,17 @@ pub struct Info {
 /// `gray`, `bitonal`; we publish the full set explicitly.
 pub const EXTRA_QUALITIES: &[&str] = &["color", "gray", "bitonal"];
 
-/// Formats beyond the level-2 requirement (`jpg`, `png`) the binary can
-/// encode **today**. Grows to the complete table at M6; never lies.
-pub const EXTRA_FORMATS: &[&str] = &[];
+/// Formats beyond the level-2 requirement (`jpg`, `png`) the binary
+/// encodes — the complete spec table (webp is lossless-only, the one
+/// documented asterisk). Never lies.
+pub const EXTRA_FORMATS: &[&str] = &["gif", "jp2", "pdf", "tif", "webp"];
 
 /// Feature names beyond the level-2 set that this binary supports today,
 /// from the v3 feature-name table. Grows as milestones land; never lies.
 pub const EXTRA_FEATURES: &[&str] = &[
     "mirroring",
     "regionSquare",
+    "rotationArbitrary",
     "sizeByConfinedWh",
     "sizeByDistortedWh",
     "sizeByWh",

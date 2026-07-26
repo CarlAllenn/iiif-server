@@ -20,6 +20,8 @@ j2k = "0.7"
 num-traits = "0.2"
 fast_image_resize = "6"
 jpeg-encoder = "0.7"
+gif = "0.14"
+image-webp = "0.2"
 
 [dev-dependencies]
 proptest = "1"

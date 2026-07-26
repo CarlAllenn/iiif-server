@@ -140,18 +140,18 @@ pub const CONTEXT_V2: &str = "http://iiif.io/api/image/2/context.json";
 pub const LEVEL2_V2: &str = "http://iiif.io/api/image/2/level2.json";
 
 /// Named v2.1 features this binary supports beyond level 2, from the
-/// official compliance document. Grows (rotationArbitrary) with the
-/// completionist sweep; never lies.
+/// official compliance document. Never lies.
 pub const SUPPORTS_BEYOND_LEVEL2: &[&str] = &[
     "canonicalLinkHeader",
     "mirroring",
     "profileLinkHeader",
     "regionSquare",
+    "rotationArbitrary",
     "sizeAboveFull",
 ];
 
-/// Output formats the binary can encode today, published in the profile.
-pub const FORMATS: &[&str] = &["jpg", "png"];
+/// Output formats, published in the profile — the complete table.
+pub const FORMATS: &[&str] = &["gif", "jp2", "jpg", "pdf", "png", "tif", "webp"];
 /// Qualities, all four, always.
 pub const QUALITIES: &[&str] = &["default", "color", "gray", "bitonal"];
 
