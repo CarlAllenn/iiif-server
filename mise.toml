@@ -21,6 +21,13 @@ lockfile_platforms = ["macos-arm64", "linux-x64", "linux-arm64"]
 # deprecated upstream in favor of github:.
 disable_backends = ["asdf", "ubi"]
 
+# Bootstrap guarantee: a fresh clone gets its git hooks installed by the
+# standard `mise install`; without this, .git/hooks/ is empty and the whole
+# enforcement layer silently doesn't exist. Idempotent; lefthook auto-resyncs
+# hooks on every run thereafter.
+[hooks]
+postinstall = "lefthook install"
+
 [tools]
 rust = { version = "1.97.1", components = "rustfmt,clippy" }
 task = "3.52.0"

@@ -9,18 +9,18 @@ work_dir=$(pwd)
 
 FIXTURE=tests/fixtures/generated/spike1_ycbcr420.tif
 if [ ! -f "${FIXTURE}" ]; then
-    echo "run scripts/gen_spike1.sh first" >&2
-    exit 2
+  echo "run scripts/gen_spike1.sh first" >&2
+  exit 2
 fi
 
 # rust:alpine = musl-native toolchain. Separate target dir keeps the
 # container's musl artifacts away from the host's; a named volume caches
 # the registry between runs.
 docker run --rm \
-    -v "${work_dir}":/work -w /work \
-    -v iiif-alloc-bench-registry:/usr/local/cargo/registry \
-    -e CARGO_TARGET_DIR=/tmp/target \
-    rust:1.97-alpine sh -c '
+  -v "${work_dir}":/work -w /work \
+  -v iiif-alloc-bench-registry:/usr/local/cargo/registry \
+  -e CARGO_TARGET_DIR=/tmp/target \
+  rust:1.97-alpine sh -c '
         set -eu
         apk add --quiet build-base
         echo "--- building (system/musl allocator)"
