@@ -57,14 +57,9 @@ tasks:
 
   lint:deny:
     desc: cargo-deny (advisories, licenses, bans, sources)
-    method: checksum
-    sources:
-      - "**/Cargo.toml"
-      - Cargo.lock
-      - deny.toml
-      - mise.toml
-      - mise.lock
-      - exclude: "**/target/**"
+    # Deliberately NOT fingerprinted: the advisories check reads the RustSec
+    # database, which changes without commits — a source-checksum skip is
+    # unsound for any security gate. New advisories must turn this red.
     cmds:
       - cargo deny check
 
