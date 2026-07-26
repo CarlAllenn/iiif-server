@@ -129,6 +129,9 @@ async fn serve(config: Config) -> Result<(), String> {
         public_base: config.public_base,
         admission: Arc::new(Semaphore::new(config.workers + config.queue_depth)),
         decode_permits: Arc::new(Semaphore::new(config.workers)),
+        workers: config.workers,
+        queue_depth: config.queue_depth,
+        metrics: Arc::new(iiif_server::metrics::Metrics::default()),
     });
     let listener = TcpListener::bind(config.bind)
         .await

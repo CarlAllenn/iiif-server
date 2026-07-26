@@ -25,6 +25,9 @@ fn app() -> Arc<App> {
         public_base: Some("https://images.example.org".to_owned()),
         admission: Arc::new(Semaphore::new(8)),
         decode_permits: Arc::new(Semaphore::new(4)),
+        workers: 4,
+        queue_depth: 4,
+        metrics: Arc::new(iiif_server::metrics::Metrics::default()),
     })
 }
 
@@ -175,6 +178,9 @@ async fn saturated_queue_returns_503_with_retry_after() {
         // Zero admission permits: every image request is over capacity.
         admission: Arc::new(Semaphore::new(0)),
         decode_permits: Arc::new(Semaphore::new(1)),
+        workers: 1,
+        queue_depth: 0,
+        metrics: Arc::new(iiif_server::metrics::Metrics::default()),
     });
     let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/max/0/default.jpg").await;
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -277,4 +283,26 @@ async fn etag_and_conditional_requests() {
         .unwrap();
     let response = Arc::clone(&app).handle(req).await;
     assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+}
+
+#[tokio::test]
+async fn metrics_render_the_frozen_set() {
+    use http_body_util::BodyExt;
+    let app = app();
+    // Generate one of each family.
+    let _ = get(&app, "/iiif/3/rgb_pyramid.tif/info.json").await;
+    let _ = get(&app, "/iiif/3/rgb_pyramid.tif/full/64,/0/default.jpg").await;
+    let response = get(&app, "/metrics").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let text = std::str::from_utf8(&body).unwrap();
+    assert!(
+        text.contains("iiif_requests_total{family=\"info\"} 1"),
+        "{text}"
+    );
+    assert!(text.contains("iiif_requests_total{family=\"image\"} 1"));
+    assert!(text.contains("iiif_responses_total{class=\"2xx\"} 2"));
+    assert!(text.contains("iiif_request_duration_seconds_count 2"));
+    assert!(text.contains("iiif_decode_in_flight 0"));
+    assert!(text.contains("iiif_overload_total 0"));
 }

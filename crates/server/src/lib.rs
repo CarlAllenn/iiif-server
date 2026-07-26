@@ -2,3 +2,4 @@
 //! integration tests exercise exact response semantics without sockets.
 
 pub mod app;
+pub mod metrics;

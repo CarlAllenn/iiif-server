@@ -21,7 +21,10 @@ use iiif_core::source::SourceError;
 use iiif_sources::LocalRoot;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::Semaphore;
+
+use crate::metrics::{Family, Metrics};
 
 /// JSON-LD media type with the required profile parameter.
 const LD_JSON: &str = "application/ld+json;profile=\"http://iiif.io/api/image/3/context.json\"";
@@ -123,6 +126,11 @@ pub struct App {
     /// Execution permits = workers: bounds concurrent pixel work; waiting
     /// here is bounded because admission already capped the waiters.
     pub decode_permits: Arc<Semaphore>,
+    /// Worker-pool sizing, kept for the queue-depth gauges.
+    pub workers: usize,
+    pub queue_depth: usize,
+    /// The frozen metric set (design spec, Observability).
+    pub metrics: Arc<Metrics>,
 }
 
 impl App {
@@ -134,6 +142,19 @@ impl App {
     /// Only if `hyper`'s response builder rejects statically valid
     /// header/status combinations — structurally impossible.
     pub async fn handle<B>(self: Arc<Self>, req: Request<B>) -> Response<Full<Bytes>> {
+        let started = Instant::now();
+        let family = match Route::of(req.uri().path()) {
+            Route::InfoJson { .. } => Family::Info,
+            Route::Image { .. } => Family::Image,
+            _ => Family::Other,
+        };
+        let response = self.handle_inner(req).await;
+        self.metrics
+            .observe(family, response.status().as_u16(), started.elapsed());
+        response
+    }
+
+    async fn handle_inner<B>(self: &Arc<Self>, req: Request<B>) -> Response<Full<Bytes>> {
         let method = req.method().clone();
         if method == Method::OPTIONS {
             return preflight();
@@ -148,6 +169,20 @@ impl App {
                 .header(CONTENT_TYPE, "text/plain")
                 .body(Full::new(Bytes::from_static(b"ok\n")))
                 .expect("static response"),
+            Route::Metrics => {
+                let in_flight = self
+                    .workers
+                    .saturating_sub(self.decode_permits.available_permits());
+                let admitted = (self.workers + self.queue_depth)
+                    .saturating_sub(self.admission.available_permits());
+                let queued = admitted.saturating_sub(in_flight);
+                let body = self.metrics.render(in_flight as u64, queued as u64);
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header(CONTENT_TYPE, "text/plain; version=0.0.4")
+                    .body(Full::new(Bytes::from(body)))
+                    .expect("static response")
+            }
             Route::BaseRedirect {
                 version,
                 identifier,
@@ -405,6 +440,7 @@ impl ImageFailure {
 /// The resource shapes under `/iiif/3/` and `/iiif/2/`.
 enum Route<'p> {
     Health,
+    Metrics,
     BaseRedirect {
         version: Version,
         identifier: &'p str,
@@ -425,6 +461,9 @@ impl<'p> Route<'p> {
     fn of(path: &'p str) -> Self {
         if path == "/healthz" {
             return Self::Health;
+        }
+        if path == "/metrics" {
+            return Self::Metrics;
         }
         let (version, rest) = if let Some(rest) = path.strip_prefix("/iiif/3/") {
             (Version::V3, rest)
