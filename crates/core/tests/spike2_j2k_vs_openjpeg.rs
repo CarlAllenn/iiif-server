@@ -1,5 +1,5 @@
 //! SPIKE 2 (M0): `j2k` correctness and region-at-scale performance against
-//!  goldens, on a large tiled pyramidal JP2.
+//! `OpenJPEG` goldens, on a large tiled pyramidal JP2.
 //!
 //! Requires generated fixtures: `task spike2` (or `scripts/gen_spike2.sh`).
 //! Ignored by default so `cargo test` stays hermetic.

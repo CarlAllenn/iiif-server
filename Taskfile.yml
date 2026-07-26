@@ -54,6 +54,11 @@ tasks:
       - scripts/gen_spike2.sh
       - cargo test --release -p iiif-core --test spike2_j2k_vs_openjpeg -- --ignored --nocapture
 
+  spike:objstore:
+    desc: "Object-store range-read profile vs Docker MinIO (Hetzner = env swap)"
+    cmds:
+      - scripts/spike_objstore.sh
+
   check:
     desc: Format check + lint + tests (what CI runs)
     cmds:

@@ -16,6 +16,11 @@ allow = [
   # jpeg-encoder is (MIT OR Apache-2.0) AND IJG; IJG is the Independent
   # JPEG Group's permissive notice license (FSF Free/Libre).
   "IJG",
+  # The object_store/rustls tree (M4 sources): ring & rustls are ISC,
+  # subtle is BSD-3-Clause, webpki-root-certs data is CDLA-Permissive-2.0.
+  "ISC",
+  "BSD-3-Clause",
+  "CDLA-Permissive-2.0",
 ]
 private = { ignore = true }
 

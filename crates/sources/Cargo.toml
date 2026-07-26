@@ -11,10 +11,34 @@ publish.workspace = true
 iiif-core.workspace = true
 bytes.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util", "rt"] }
+# Tracked class: owns the credential swamp (design spec, Sources decision).
+# aws-base + ring: SigV4 signing via ring (trusted compute, our own
+# signatures — no hostile bytes). Deliberately NOT the full "aws" feature:
+# that pulls aws-lc TLS, and the outbound-TLS crypto-provider choice is an
+# M4 decision recorded in docs/spikes/objstore-minio.md.
+object_store = { version = "0.14", default-features = false, features = [
+  "aws-base",
+  "reqwest",
+  "ring",
+  "fs",
+] }
+# rustls-no-provider: TLS machinery compiles, but the crypto provider is
+# installed explicitly at startup — keeping the provider choice (and its
+# C-in-the-crypto question) a visible decision, not a default.
+reqwest = { version = "0.13", default-features = false, features = [
+  "rustls-no-provider",
+  "http2",
+] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
+# The spike example installs the ring provider explicitly (see the
+# rustls-no-provider note above).
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "std",
+] }
 
 [lints]
 workspace = true
