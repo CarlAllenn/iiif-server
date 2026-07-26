@@ -64,6 +64,16 @@ tasks:
     cmds:
       - scripts/spike_alloc.sh
 
+  fuzz:
+    desc: "Fuzz all targets briefly (nightly + cargo-fuzz); FUZZ_SECONDS to extend"
+    vars:
+      FUZZ_SECONDS: '{{.FUZZ_SECONDS | default "60"}}'
+    cmds:
+      - for: [url_grammar, identifier, v2_grammar, master_open]
+        cmd: >-
+          cargo +nightly fuzz run {{.ITEM}} --
+          -max_total_time={{.FUZZ_SECONDS}} -rss_limit_mb=4096 -malloc_limit_mb=2048
+
   e2e:s3:
     desc: End-to-end object-store serving vs Docker MinIO (pixel-verified)
     cmds:

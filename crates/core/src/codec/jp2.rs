@@ -2,7 +2,7 @@
 //! `OpenJPEG`-based incumbent has, validated bit-exact against `OpenJPEG` by
 //! SPIKE 2.
 
-use super::{CodecError, Master};
+use super::{CodecError, Master, guard_resident_pixels};
 use crate::eval::CropRect;
 use crate::image::Raster;
 use crate::info::{ImageDescription, SizeEntry, TileSet};
@@ -203,6 +203,7 @@ impl Master for Jp2Master {
         // masters until the upstream region-decode fix lands.
         let full_w = self.width.div_ceil(scale.denominator());
         let full_h = self.height.div_ceil(scale.denominator());
+        guard_resident_pixels(full_w, full_h)?;
         let stride = full_w as usize * bpp;
         let mut out = vec![0u8; stride * full_h as usize];
         decoder

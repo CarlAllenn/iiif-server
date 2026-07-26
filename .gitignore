@@ -5,3 +5,9 @@ settings.local.json
 /tests/fixtures/generated/
 # Spike scratch output (numbers get recorded in docs/spikes/, not committed raw)
 /spikes/out/
+# Fuzzing: the harness is committed, the corpora and crash artifacts are not
+# (findings become regression fixtures + tests instead).
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/target/
+/fuzz/Cargo.lock

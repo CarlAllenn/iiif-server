@@ -151,3 +151,17 @@ fn unrecognized_master_is_actionable() {
     };
     assert!(err.to_string().contains("supported"), "got: {err}");
 }
+
+#[test]
+fn declared_dimension_bomb_is_rejected_before_allocating() {
+    // Regression: found by fuzzing (fuzz/fuzz_targets/master_open.rs).
+    // A 90-byte PNG header claiming 512×16777335 drove a 25 GB
+    // allocation before any pixel arrived; the whole-decode ceiling now
+    // rejects it at the header, with conversion advice.
+    let Err(err) = open_master(fixture("bomb_declared_512x16777335.png")) else {
+        panic!("dimension bomb must be rejected");
+    };
+    let message = err.to_string();
+    assert!(message.contains("ceiling"), "got: {message}");
+    assert!(message.contains("pyramidal"), "advice missing: {message}");
+}

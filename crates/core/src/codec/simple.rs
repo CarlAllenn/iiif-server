@@ -2,7 +2,7 @@
 //! tiles to exploit), served by cropping the resident raster. `check`
 //! advises converting large ones to pyramids; small images are fine here.
 
-use super::{CodecError, Master};
+use super::{CodecError, Master, guard_resident_pixels};
 use crate::eval::CropRect;
 use crate::image::{CopyRect, Raster};
 use crate::info::ImageDescription;
@@ -29,6 +29,17 @@ impl SimpleMaster {
             zune_jpeg::zune_core::bytestream::ZCursor::new(bytes),
             options,
         );
+        // Headers first: dimensions must clear the bomb ceiling before
+        // any pixel buffer is allocated.
+        decoder
+            .decode_headers()
+            .map_err(|e| CodecError::Corrupt(format!("JPEG headers: {e}")))?;
+        if let Some((width, height)) = decoder.dimensions() {
+            guard_resident_pixels(
+                u32::try_from(width).unwrap_or(u32::MAX),
+                u32::try_from(height).unwrap_or(u32::MAX),
+            )?;
+        }
         let pixels = decoder
             .decode()
             .map_err(|e| CodecError::Corrupt(format!("JPEG decode: {e}")))?;
@@ -59,6 +70,12 @@ impl SimpleMaster {
         let mut reader = decoder
             .read_info()
             .map_err(|e| CodecError::Corrupt(format!("PNG decode: {e}")))?;
+        // Header dimensions are known here; the frame buffer is not yet
+        // allocated. Guard before it is.
+        {
+            let info = reader.info();
+            guard_resident_pixels(info.width, info.height)?;
+        }
         let mut buf = vec![
             0u8;
             reader

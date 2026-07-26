@@ -21,6 +21,34 @@ use std::io::{Read, Seek, SeekFrom};
 use tiff::ColorType;
 use tiff::decoder::{Decoder, DecodingResult};
 
+/// Decompression-bomb ceiling for masters that must be decoded whole
+/// (plain JPEG/PNG, and the JP2 partial-grid fallback): 268 million
+/// pixels, i.e. under a gigabyte of RGB. Region-decoded masters
+/// (pyramidal TIFF, tiled JP2) are not bounded by this — they never
+/// materialize the full image.
+///
+/// Found by fuzzing: a 12-byte PNG header claiming 512×16777335 drove a
+/// 25 GB allocation before any pixel arrived.
+pub const MAX_RESIDENT_PIXELS: u64 = 268_435_456;
+
+/// Reject declared dimensions that would exceed [`MAX_RESIDENT_PIXELS`],
+/// before anything is allocated.
+///
+/// # Errors
+///
+/// [`CodecError::Unsupported`] with the conversion advice.
+pub fn guard_resident_pixels(width: u32, height: u32) -> Result<(), CodecError> {
+    let pixels = u64::from(width) * u64::from(height);
+    if pixels > MAX_RESIDENT_PIXELS {
+        return Err(CodecError::Unsupported(format!(
+            "{width}×{height} exceeds the whole-decode ceiling of {MAX_RESIDENT_PIXELS} \
+            pixels; masters this large must be pyramidal: vips tiffsave in out.tif \
+            --tile --pyramid --compression jpeg"
+        )));
+    }
+    Ok(())
+}
+
 /// A master image opened for serving: enough metadata for info.json and
 /// the ability to decode any clipped full-resolution crop at (at least)
 /// the detail an output scale needs.

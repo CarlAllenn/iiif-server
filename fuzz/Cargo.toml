@@ -1,0 +1,42 @@
+# The fuzzing harness (cargo-fuzz). Not a workspace member: it needs
+# nightly + libfuzzer and its own lint posture.
+[package]
+name = "iiif-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+iiif-core = { path = "../crates/core" }
+
+[[bin]]
+name = "url_grammar"
+path = "fuzz_targets/url_grammar.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "identifier"
+path = "fuzz_targets/identifier.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "v2_grammar"
+path = "fuzz_targets/v2_grammar.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "master_open"
+path = "fuzz_targets/master_open.rs"
+test = false
+doc = false
+bench = false
