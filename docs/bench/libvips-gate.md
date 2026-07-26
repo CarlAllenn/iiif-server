@@ -73,6 +73,19 @@ options, for the record:
    verify it), at the cost of C in the decode path.
 3. **Wait on `j2k`** — it is young (0.7.x) and improving; the gap may
    close upstream. The codec seam means this costs nothing to wait on.
+   The partial-grid region-decode bug is now filed with a standalone
+   reproducer: <https://github.com/frames-sg/j2k/issues/62>. A fix also
+   removes the decode-full-then-crop fallback, extending the fast path
+   to every tile grid.
 
 Recommendation: **option 1 for now**, revisit at the launch milestone
 with real-corpus numbers rather than synthetic ones.
+
+## Caveat: these are fast-path numbers only
+
+The JP2 case above uses an 8192² master tiled at 1024 — an exact grid,
+so it exercises the region-decode fast path. Real tiled JP2s rarely
+have grid-aligned dimensions and take the whole-image-decode fallback
+(upstream bug above), which this table does not yet measure. Issue #1
+tracks the realistic-corpus slow-path benchmark; the Plan B decision
+(issue #2) is blocked on those numbers and on the upstream response.
