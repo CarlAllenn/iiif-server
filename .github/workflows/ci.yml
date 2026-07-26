@@ -52,10 +52,9 @@ jobs:
           path: .task
           key: task-fingerprints-${{ matrix.runner }}-${{ github.sha }}
           restore-keys: task-fingerprints-${{ matrix.runner }}-
-      - env:
-          # zizmor: enables online audits (known-vulnerable-actions etc.)
-          GH_TOKEN: ${{ github.token }}
-        run: task ci
+      # zizmor runs offline everywhere (deterministic gates); its online
+      # audits move to the scanner baseline (renovate-config issue #7).
+      - run: task ci
 
   validate:
     name: Official IIIF validators (v3 + v2.1, level 2)
