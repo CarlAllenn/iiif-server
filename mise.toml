@@ -1,3 +1,5 @@
+# Settings block: canonical baseline from CarlAllenn/renovate-config
+# templates/mise/settings.toml — drift-audited, do not edit locally.
 min_version = "2026.7.12"
 
 [settings]
@@ -5,7 +7,19 @@ lockfile = true                 # mise.lock records resolved versions + checksum
 pin = true                      # `mise use` writes exact versions, never ranges
 activate_aggressive = true      # tool bin-paths go to FRONT of PATH (system tools can never shadow pins)
 locked_verify_provenance = true # re-verify provenance on install even when the lockfile has entries
-minimum_release_age = "72h"     # never install a release younger than 3 days (supply-chain cooldown)
+# Strict mode: install only from pre-resolved lockfile URLs — no registry/API
+# resolution, and ad-hoc `mise x tool@ver` installs of unpinned tools fail
+# (mechanical no-ad-hoc enforcement).
+locked = true
+# Never install a release younger than 3 days (supply-chain cooldown; matches
+# the Renovate preset's minimumReleaseAge). pipx:/npm: forward this into
+# transitive dependency resolution.
+minimum_release_age = "72h"
+# Dev Mac + CI runners; the default would also lock musl/windows we never target.
+lockfile_platforms = ["macos-arm64", "linux-x64", "linux-arm64"]
+# asdf plugins are legacy (single-maintainer bash, no checksums); ubi is
+# deprecated upstream in favor of github:.
+disable_backends = ["asdf", "ubi"]
 
 [tools]
 rust = { version = "1.97.1", components = "rustfmt,clippy" }
