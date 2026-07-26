@@ -13,3 +13,4 @@ pub mod image;
 pub mod info;
 pub mod pipeline;
 pub mod source;
+pub mod v2;

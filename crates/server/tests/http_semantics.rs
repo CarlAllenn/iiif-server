@@ -180,3 +180,52 @@ async fn saturated_queue_returns_503_with_retry_after() {
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(header(&response, "retry-after"), "2");
 }
+
+#[tokio::test]
+async fn v2_endpoint_semantics() {
+    use http_body_util::BodyExt;
+    let app = app();
+    // v2 info.json: @id + profile array.
+    let response = get(&app, "/iiif/2/rgb_pyramid.tif/info.json").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(header(&response, "link").contains("image/2/level2.json"));
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["@context"], "http://iiif.io/api/image/2/context.json");
+    assert_eq!(
+        json["@id"],
+        "https://images.example.org/iiif/2/rgb_pyramid.tif"
+    );
+    assert_eq!(json["profile"][0], "http://iiif.io/api/image/2/level2.json");
+
+    // v2 base redirect stays inside /iiif/2/.
+    let response = get(&app, "/iiif/2/rgb_pyramid.tif").await;
+    assert_eq!(
+        header(&response, "location"),
+        "/iiif/2/rgb_pyramid.tif/info.json"
+    );
+
+    // sizeAboveFull: upscaling without ^ is legal in v2 …
+    let response = get(&app, "/iiif/2/rgb_pyramid.tif/full/1200,/0/default.jpg").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    // … and the canonical link uses the v2 `w,` spelling.
+    assert!(
+        header(&response, "link").contains("/iiif/2/rgb_pyramid.tif/full/1200,/0/default.jpg>"),
+        "got {}",
+        header(&response, "link")
+    );
+
+    // `full` size and `^` behave per version: full is v2-only, ^ is v3-only.
+    let response = get(&app, "/iiif/2/rgb_pyramid.tif/full/full/0/default.jpg").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = get(&app, "/iiif/2/rgb_pyramid.tif/full/^max/0/default.jpg").await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/full/0/default.jpg").await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = get(&app, "/iiif/3/rgb_pyramid.tif/full/1200,/0/default.jpg").await;
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_REQUEST,
+        "v3 upscale still needs ^"
+    );
+}

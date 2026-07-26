@@ -255,16 +255,21 @@ fn limit_fit_scale(rw: f64, rh: f64, limits: Limits) -> f64 {
 }
 
 impl Plan {
+    /// Whether the extracted region is the entire image.
+    #[must_use]
+    pub fn is_full_region(&self) -> bool {
+        self.crop.x == 0
+            && self.crop.y == 0
+            && self.crop.w == self.full_w
+            && self.crop.h == self.full_h
+    }
+
     /// The canonical request path (region/size/rotation/quality.format)
     /// per the spec's canonical-form rules, used for the `Link
     /// rel="canonical"` header.
     #[must_use]
     pub fn canonical_path(&self) -> String {
-        let region = if self.crop.x == 0
-            && self.crop.y == 0
-            && self.crop.w == self.full_w
-            && self.crop.h == self.full_h
-        {
+        let region = if self.is_full_region() {
             "full".to_owned()
         } else {
             format!(

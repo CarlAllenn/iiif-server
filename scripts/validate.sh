@@ -15,7 +15,8 @@ REF_NAME=67352ccc-d1b0-11e1-89ae-279075081939
 REF_SHA256=c67abb4dc9650b4d69b46a4ef0453428ea860d63b02ac406d3e0d7425167d736
 PORT=6464
 
-api_version="3.0"
+# By default both API versions run (3.0 then 2.0); --version picks one.
+api_version=""
 level=2
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -84,8 +85,27 @@ if [ ! -x "${venv}/bin/python" ]; then
     uv pip install --quiet --python "${venv}/bin/python" \
         "iiif-validator @ git+https://github.com/IIIF/image-validator@${VALIDATOR_SHA}"
 fi
-DYLD_LIBRARY_PATH="${libmagic_dir}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" \
-    LD_LIBRARY_PATH="${libmagic_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
-    "${venv}/bin/python" "${venv}/bin/iiif-validate.py" \
-    -s "127.0.0.1:${PORT}" -p "iiif/3" -i "validation.tif" \
-    --version "${api_version}" --level "${level}" -v
+
+run_suite() {
+    suite_version="$1"
+    suite_prefix="$2"
+    echo "=== IIIF Image API ${suite_version}, level ${level}, prefix /${suite_prefix}/ ==="
+    DYLD_LIBRARY_PATH="${libmagic_dir}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" \
+        LD_LIBRARY_PATH="${libmagic_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+        "${venv}/bin/python" "${venv}/bin/iiif-validate.py" \
+        -s "127.0.0.1:${PORT}" -p "${suite_prefix}" -i "validation.tif" \
+        --version "${suite_version}" --level "${level}" -v
+}
+
+case "${api_version}" in
+"")
+    run_suite 3.0 iiif/3
+    run_suite 2.0 iiif/2
+    ;;
+3.0) run_suite 3.0 iiif/3 ;;
+2.0 | 2.1) run_suite "${api_version}" iiif/2 ;;
+*)
+    echo "unsupported --version ${api_version}" >&2
+    exit 2
+    ;;
+esac

@@ -21,10 +21,43 @@ use tokio::sync::Semaphore;
 
 /// JSON-LD media type with the required profile parameter.
 const LD_JSON: &str = "application/ld+json;profile=\"http://iiif.io/api/image/3/context.json\"";
+const LD_JSON_V2: &str = "application/ld+json;profile=\"http://iiif.io/api/image/2/context.json\"";
 
-/// The compliance-level profile document, sent as a Link header on every
+/// The compliance-level profile documents, sent as a Link header on every
 /// image and info.json response (optional feature `profileLinkHeader`).
 const PROFILE_LINK: &str = "<http://iiif.io/api/image/3/level2.json>;rel=\"profile\"";
+const PROFILE_LINK_V2: &str = "<http://iiif.io/api/image/2/level2.json>;rel=\"profile\"";
+
+/// Which API family a request addresses. Both mount over the same engine
+/// (design spec: the v2.1 endpoint is a translation layer, M3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Version {
+    V2,
+    V3,
+}
+
+impl Version {
+    fn prefix(self) -> &'static str {
+        match self {
+            Self::V2 => "iiif/2",
+            Self::V3 => "iiif/3",
+        }
+    }
+
+    fn profile_link(self) -> &'static str {
+        match self {
+            Self::V2 => PROFILE_LINK_V2,
+            Self::V3 => PROFILE_LINK,
+        }
+    }
+
+    fn ld_json(self) -> &'static str {
+        match self {
+            Self::V2 => LD_JSON_V2,
+            Self::V3 => LD_JSON,
+        }
+    }
+}
 
 /// Shared server state: source root, limits, and the bounded decode pool.
 pub struct App {
@@ -64,18 +97,31 @@ impl App {
                 .header(CONTENT_TYPE, "text/plain")
                 .body(Full::new(Bytes::from_static(b"ok\n")))
                 .expect("static response"),
-            Route::BaseRedirect { identifier } => match Identifier::decode(identifier) {
+            Route::BaseRedirect {
+                version,
+                identifier,
+            } => match Identifier::decode(identifier) {
                 Ok(id) => Response::builder()
                     .status(StatusCode::SEE_OTHER)
-                    .header(LOCATION, format!("/iiif/3/{}/info.json", id.encoded()))
+                    .header(
+                        LOCATION,
+                        format!("/{}/{}/info.json", version.prefix(), id.encoded()),
+                    )
                     .body(Full::new(Bytes::new()))
                     .expect("static response"),
                 Err(_) => error(StatusCode::NOT_FOUND, "unknown identifier"),
             },
-            Route::InfoJson { identifier } => self.info_json(identifier, &req).await,
-            Route::Image { identifier, rest } => {
+            Route::InfoJson {
+                version,
+                identifier,
+            } => self.info_json(version, identifier, &req).await,
+            Route::Image {
+                version,
+                identifier,
+                rest,
+            } => {
                 let base = self.base_uri(&req);
-                self.image(identifier, rest, &base).await
+                self.image(version, identifier, rest, &base).await
             }
             Route::None => error(StatusCode::NOT_FOUND, "no such resource"),
         };
@@ -86,7 +132,12 @@ impl App {
         response
     }
 
-    async fn info_json<B>(&self, raw_id: &str, req: &Request<B>) -> Response<Full<Bytes>> {
+    async fn info_json<B>(
+        &self,
+        version: Version,
+        raw_id: &str,
+        req: &Request<B>,
+    ) -> Response<Full<Bytes>> {
         let Ok(id) = Identifier::decode(raw_id) else {
             return error(StatusCode::NOT_FOUND, "unknown identifier");
         };
@@ -107,11 +158,11 @@ impl App {
             Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR, "decode task failed"),
         };
         let base = self.base_uri(req);
-        let info = Info::new(
-            format!("{base}/iiif/3/{}", id.encoded()),
-            &description,
-            self.limits,
-        );
+        let document_id = format!("{base}/{}/{}", version.prefix(), id.encoded());
+        let body = match version {
+            Version::V3 => Info::new(document_id, &description, self.limits).to_json(),
+            Version::V2 => iiif_core::v2::info_json(&document_id, &description, self.limits),
+        };
         // Content negotiation (§5.2): ld+json when asked for, with Vary.
         let accept = req
             .headers()
@@ -119,7 +170,7 @@ impl App {
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         let content_type = if accept.contains("application/ld+json") {
-            LD_JSON
+            version.ld_json()
         } else {
             "application/json"
         };
@@ -127,18 +178,30 @@ impl App {
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, content_type)
             .header(VARY, "Accept")
-            .header(LINK, PROFILE_LINK)
-            .body(Full::new(Bytes::from(info.to_json())))
+            .header(LINK, version.profile_link())
+            .body(Full::new(Bytes::from(body)))
             .expect("valid response")
     }
 
-    async fn image(&self, raw_id: &str, rest: &str, base: &str) -> Response<Full<Bytes>> {
+    async fn image(
+        &self,
+        version: Version,
+        raw_id: &str,
+        rest: &str,
+        base: &str,
+    ) -> Response<Full<Bytes>> {
         let Ok(id) = Identifier::decode(raw_id) else {
             return error(StatusCode::NOT_FOUND, "unknown identifier");
         };
-        let request = match ImageRequest::parse(rest) {
-            Ok(request) => request,
-            Err(e) => return parse_error(&e),
+        let (request, v2_spelling) = match version {
+            Version::V3 => match ImageRequest::parse(rest) {
+                Ok(request) => (request, None),
+                Err(e) => return parse_error(&e),
+            },
+            Version::V2 => match iiif_core::v2::parse_image_request(rest) {
+                Ok(parsed) => (parsed.request, Some(parsed)),
+                Err(e) => return parse_error(&e),
+            },
         };
         let source = match self.root.resolve(&id) {
             Ok(source) => source,
@@ -170,10 +233,15 @@ impl App {
         match result {
             Ok(Ok((bytes, plan))) => {
                 // Optional features `canonicalLinkHeader` + `profileLinkHeader`.
+                let canonical_path = match v2_spelling {
+                    Some(v2) => iiif_core::v2::canonical_path(&plan, &v2),
+                    None => plan.canonical_path(),
+                };
                 let canonical = format!(
-                    "<{base}/iiif/3/{}/{}>;rel=\"canonical\", {PROFILE_LINK}",
+                    "<{base}/{}/{}/{canonical_path}>;rel=\"canonical\", {}",
+                    version.prefix(),
                     id.encoded(),
-                    plan.canonical_path()
+                    version.profile_link()
                 );
                 Response::builder()
                     .status(StatusCode::OK)
@@ -234,12 +302,22 @@ impl ImageFailure {
     }
 }
 
-/// The four resource shapes under `/iiif/3/`.
+/// The resource shapes under `/iiif/3/` and `/iiif/2/`.
 enum Route<'p> {
     Health,
-    BaseRedirect { identifier: &'p str },
-    InfoJson { identifier: &'p str },
-    Image { identifier: &'p str, rest: &'p str },
+    BaseRedirect {
+        version: Version,
+        identifier: &'p str,
+    },
+    InfoJson {
+        version: Version,
+        identifier: &'p str,
+    },
+    Image {
+        version: Version,
+        identifier: &'p str,
+        rest: &'p str,
+    },
     None,
 }
 
@@ -248,7 +326,11 @@ impl<'p> Route<'p> {
         if path == "/healthz" {
             return Self::Health;
         }
-        let Some(rest) = path.strip_prefix("/iiif/3/") else {
+        let (version, rest) = if let Some(rest) = path.strip_prefix("/iiif/3/") {
+            (Version::V3, rest)
+        } else if let Some(rest) = path.strip_prefix("/iiif/2/") {
+            (Version::V2, rest)
+        } else {
             return Self::None;
         };
         // Exact segment shapes only. An identifier containing a raw
@@ -256,9 +338,16 @@ impl<'p> Route<'p> {
         // to 404, as the spec requires for unescaped special characters.
         let segments: Vec<&str> = rest.split('/').collect();
         match segments.as_slice() {
-            [identifier] if !identifier.is_empty() => Self::BaseRedirect { identifier },
-            [identifier, "info.json"] => Self::InfoJson { identifier },
+            [identifier] if !identifier.is_empty() => Self::BaseRedirect {
+                version,
+                identifier,
+            },
+            [identifier, "info.json"] => Self::InfoJson {
+                version,
+                identifier,
+            },
             [identifier, _region, _size, _rotation, _file] => Self::Image {
+                version,
                 identifier,
                 rest: &rest[identifier.len() + 1..],
             },
