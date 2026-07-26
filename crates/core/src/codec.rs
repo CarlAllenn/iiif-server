@@ -42,6 +42,12 @@ pub trait Master: Send {
     ///
     /// Decode failures; see [`CodecError`].
     fn decode_crop(&mut self, crop: CropRect, needed: f64) -> Result<Raster, CodecError>;
+
+    /// `check`-subcommand advice: serving-performance caveats this master
+    /// carries, each with the one-line fix. Empty means "serves well".
+    fn advisories(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// Sniff the container format and open the right decoder.

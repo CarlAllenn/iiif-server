@@ -147,6 +147,28 @@ impl Master for Jp2Master {
         }
     }
 
+    fn advisories(&self) -> Vec<String> {
+        let mut notes = Vec::new();
+        if !self.exact_grid {
+            notes.push(format!(
+                "JP2 tile grid has partial edge tiles ({}×{} image, {}×{} tiles): served \
+                correctly but via whole-image decode (upstream j2k region-decode issue). \
+                Re-encode with a tile size that divides the dimensions, e.g.: \
+                opj_compress -i in.tif -o out.jp2 -t 1024,1024",
+                self.width, self.height, self.tile.0, self.tile.1
+            ));
+        }
+        if self.resolution_levels <= 1 && u64::from(self.width) * u64::from(self.height) > 4_000_000
+        {
+            notes.push(
+                "large JP2 with a single resolution level: zoomed-out requests decode the \
+                full image. Re-encode with resolution levels, e.g.: opj_compress -n 6"
+                    .to_owned(),
+            );
+        }
+        notes
+    }
+
     fn decode_crop(&mut self, crop: CropRect, needed: f64) -> Result<Raster, CodecError> {
         let mut decoder = J2kDecoder::new(&self.bytes)
             .map_err(|e| CodecError::Corrupt(format!("JP2 parse: {e}")))?;

@@ -40,9 +40,67 @@ struct Config {
 const USAGE: &str = "usage: iiif-server serve <root> [--bind ADDR] [--max-width N] \
 [--max-height N] [--max-area N] [--workers N] [--queue-depth N] [--public-base URL] \
 [--endpoint URL]
+    iiif-server check <file-or-directory>
 
 <root> is a local directory or s3://bucket/prefix (credentials from the
-environment; --endpoint for S3-compatible services).";
+environment; --endpoint for S3-compatible services). `check` inspects
+masters offline and prints serving advice.";
+
+/// `iiif-server check <path>`: offline master inspection — the operator
+/// tool that turns serving-time surprises into setup-time advice.
+fn run_check(path: &Path) -> ExitCode {
+    let mut failures = 0u32;
+    let mut checked = 0u32;
+    let mut walk = vec![path.to_path_buf()];
+    while let Some(entry) = walk.pop() {
+        if entry.is_dir() {
+            match std::fs::read_dir(&entry) {
+                Ok(children) => {
+                    for child in children.flatten() {
+                        walk.push(child.path());
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}: unreadable directory: {e}", entry.display());
+                    failures += 1;
+                }
+            }
+            continue;
+        }
+        checked += 1;
+        let opened = std::fs::File::open(&entry)
+            .map_err(|e| format!("unreadable: {e}"))
+            .and_then(|file| iiif_core::codec::open_master(file).map_err(|e| e.to_string()));
+        match opened {
+            Ok(master) => {
+                let (w, h) = master.dimensions();
+                let description = master.describe();
+                let structure = if description.tiles.is_empty() {
+                    "untiled".to_owned()
+                } else {
+                    format!(
+                        "{}px tiles, scale factors {:?}",
+                        description.tiles[0].width, description.tiles[0].scale_factors
+                    )
+                };
+                println!("{}: OK — {w}×{h}, {structure}", entry.display());
+                for advisory in master.advisories() {
+                    println!("  advice: {advisory}");
+                }
+            }
+            Err(message) => {
+                println!("{}: REJECTED — {message}", entry.display());
+                failures += 1;
+            }
+        }
+    }
+    println!("checked {checked} file(s), {failures} rejected");
+    if failures == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
 
 fn parse_args(args: &[String]) -> Result<Config, String> {
     let mut it = args.iter();
@@ -100,6 +158,13 @@ fn main() -> ExitCode {
         )
         .init();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("check") {
+        let Some(target) = args.get(1) else {
+            eprintln!("usage: iiif-server check <file-or-directory>");
+            return ExitCode::FAILURE;
+        };
+        return run_check(Path::new(target));
+    }
     let config = match parse_args(&args) {
         Ok(config) => config,
         Err(message) => {

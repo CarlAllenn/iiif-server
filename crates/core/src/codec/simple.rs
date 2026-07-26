@@ -136,6 +136,21 @@ impl Master for SimpleMaster {
         }
     }
 
+    fn advisories(&self) -> Vec<String> {
+        let pixels = u64::from(self.raster.width()) * u64::from(self.raster.height());
+        if pixels > 4_000_000 {
+            vec![format!(
+                "untiled {}×{} master decodes whole on every request; convert to a \
+                pyramidal format for fast deep zoom: vips tiffsave in out.tif --tile \
+                --pyramid --compression jpeg",
+                self.raster.width(),
+                self.raster.height()
+            )]
+        } else {
+            Vec::new()
+        }
+    }
+
     fn decode_crop(&mut self, crop: CropRect, _needed: f64) -> Result<Raster, CodecError> {
         let mut out = self.raster.zeroed_like(crop.w, crop.h)?;
         out.blit(
