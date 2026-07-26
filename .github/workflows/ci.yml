@@ -33,6 +33,29 @@ jobs:
         runner: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # enforcement per issue #6 canon (allowlist derived from audit run;
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          # Derived from the audit run plus the GitHub-owned
+          # cold-cache set (mise tool installs on cache miss).
+          # arm leg: community tier skips enforcement (recorded).
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            crates.io:443
+            github.com:443
+            index.crates.io:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            static.crates.io:443
+            static.rust-lang.org:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -60,6 +83,31 @@ jobs:
     name: Official IIIF validators (v3 + v2.1, level 2)
     runs-on: ubuntu-latest
     steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # enforcement per issue #6 canon (allowlist derived from audit run;
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          # Derived from the audit run plus the GitHub-owned
+          # cold-cache set (mise tool installs on cache miss).
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            conda.anaconda.org:443
+            crates.io:443
+            files.pythonhosted.org:443
+            github.com:443
+            index.crates.io:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            objects.githubusercontent.com:443
+            pypi.org:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            static.crates.io:443
+            static.rust-lang.org:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -85,6 +133,28 @@ jobs:
     name: MSRV check
     runs-on: ubuntu-latest
     steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # enforcement per issue #6 canon (allowlist derived from audit run;
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          # Derived from the audit run plus the GitHub-owned
+          # cold-cache set (mise tool installs on cache miss).
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            crates.io:443
+            github.com:443
+            index.crates.io:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            static.crates.io:443
+            static.rust-lang.org:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
