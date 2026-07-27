@@ -30,9 +30,12 @@ jobs:
         with:
           egress-policy: block
           disable-sudo: true
+          # GitHub API responses over ~a few MB redirect to Azure blob
+          # storage; the dependency graph diff is one of them.
           allowed-endpoints: >
             api.github.com:443
             github.com:443
+            "*.blob.core.windows.net:443"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
