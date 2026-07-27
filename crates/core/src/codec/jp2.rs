@@ -2,7 +2,7 @@
 //! `OpenJPEG`-based incumbent has, validated bit-exact against `OpenJPEG` by
 //! SPIKE 2.
 
-use j2k::{CpuDecodeParallelism, Downscale, J2kDecoder, J2kScratchPool, PixelFormat, Rect};
+use j2k::{CpuDecodeParallelism, J2kDecoder, J2kScratchPool, PixelFormat, Rect};
 
 use super::{CodecError, Master};
 use crate::{
@@ -106,19 +106,18 @@ impl Jp2Master {
         }
     }
 
-    /// The deepest cheap downscale: bounded by the codestream's own
-    /// resolution ladder and by the decode API's 1/8 ceiling (SPIKE 2
-    /// finding — deeper zoom-outs decode at 1/8 and resample).
-    fn downscale_for(&self, needed: f64) -> Downscale {
-        let max_level = u32::from(self.resolution_levels - 1).min(3);
-        let mut choice = Downscale::None;
-        for (level, candidate) in [
-            (1u32, Downscale::Half),
-            (2, Downscale::Quarter),
-            (3, Downscale::Eighth),
-        ] {
-            if level <= max_level && f64::from(candidate.denominator()) <= needed {
-                choice = candidate;
+    /// The deepest cheap downscale, as a resolution-halving count:
+    /// bounded only by the codestream's own resolution ladder. The old
+    /// 1/8 ceiling came from the shared `Downscale` enum (a DCT-geometry
+    /// limit foreign to wavelets); `decode_region_scaled_pow2_into` walks
+    /// the whole ladder, so a 165 MP master rendered at 512 px decodes at
+    /// 1/16–1/32 instead of decoding 1/8 and resampling.
+    fn levels_for(&self, needed: f64) -> u8 {
+        let max_level = self.resolution_levels - 1;
+        let mut choice = 0u8;
+        for level in 1..=max_level {
+            if f64::from(1u32 << u32::from(level).min(31)) <= needed {
+                choice = level;
             }
         }
         choice
@@ -188,7 +187,7 @@ impl Master for Jp2Master {
         } else {
             CpuDecodeParallelism::Serial
         });
-        let scale = self.downscale_for(needed);
+        let levels = self.levels_for(needed);
         let fmt = self.pixel_format();
         let bpp = match fmt {
             PixelFormat::Gray8 => 1usize,
@@ -200,12 +199,12 @@ impl Master for Jp2Master {
             w: crop.w,
             h: crop.h,
         };
-        let scaled = roi.scaled_covering(scale);
+        let scaled = roi.scaled_covering_denominator(1u32 << u32::from(levels).min(31));
         let mut pool = J2kScratchPool::new();
         let stride = scaled.w as usize * bpp;
         let mut out = vec![0u8; stride * scaled.h as usize];
         decoder
-            .decode_region_scaled_into(&mut pool, &mut out, stride, fmt, roi, scale)
+            .decode_region_scaled_pow2_into(&mut pool, &mut out, stride, fmt, roi, levels)
             .map_err(|e| CodecError::Corrupt(format!("JP2 decode: {e}")))?;
         Ok(raster_of(fmt, scaled.w, scaled.h, out))
     }
