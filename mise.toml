@@ -53,7 +53,7 @@ uv = "0.11.31"
 # bench-harness Dockerfile (issue #8: every format linted)
 hadolint = "2.14.0"
 # per-PR coverage visibility (no threshold gate)
-"aqua:taiki-e/cargo-llvm-cov" = "0.6.21"
+"aqua:taiki-e/cargo-llvm-cov" = "0.8.7"
 shellcheck = "0.11.0"
 shfmt = "3.13.1"
 # secret scan: staged (universal hook) + CI history job
