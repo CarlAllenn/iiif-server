@@ -1,12 +1,17 @@
 //! Request evaluation: a parsed [`ImageRequest`] plus concrete image
 //! dimensions and deployment limits become an executable [`Plan`] — or a
-//! spec-mandated error. All the dimension-dependent rules the grammar
-//! could not check live here.
+//! spec-mandated error.
+//!
+//! All the dimension-dependent rules the grammar could not check live here.
 
-use crate::grammar::{ImageRequest, Quality, Region, Rotation, Size, SizeKind};
-use crate::info::Limits;
-use num_traits::cast::ToPrimitive;
 use std::fmt;
+
+use num_traits::cast::ToPrimitive;
+
+use crate::{
+    grammar::{ImageRequest, Quality, Region, Rotation, Size, SizeKind},
+    info::Limits,
+};
 
 /// Round a non-negative float to `u32`, saturating at the type's ceiling.
 /// Saturated values are always caught by the bounds/limits checks that
@@ -24,9 +29,13 @@ fn floor_u32(v: f64) -> u32 {
 /// clipped to the image edges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CropRect {
+    /// Left edge in full-resolution pixels.
     pub x: u32,
+    /// Top edge in full-resolution pixels.
     pub y: u32,
+    /// Width in full-resolution pixels.
     pub w: u32,
+    /// Height in full-resolution pixels.
     pub h: u32,
 }
 
@@ -38,12 +47,15 @@ pub struct Plan {
     pub crop: CropRect,
     /// Output dimensions after scaling (before rotation swaps them).
     pub out_w: u32,
+    /// Output height after scaling (before rotation swaps them).
     pub out_h: u32,
     /// Mirror before rotation.
     pub mirror: bool,
     /// Clockwise degrees, normalized to `0.0..360.0`.
     pub degrees: f64,
+    /// Requested quality, passed through to the raster stage.
     pub quality: Quality,
+    /// Requested output format, passed through to the encode stage.
     pub format: crate::grammar::Format,
     /// Whether the scale step upscales beyond the extracted region — used
     /// for the canonical `^` spelling.
@@ -71,11 +83,8 @@ pub enum EvalError {
 }
 
 impl EvalError {
-    /// The HTTP status the spec assigns to this failure.
-    #[must_use]
-    pub fn http_status(&self) -> u16 {
-        400
-    }
+    /// The HTTP status the spec assigns to every evaluation failure.
+    pub const HTTP_STATUS: u16 = 400;
 }
 
 impl fmt::Display for EvalError {
@@ -84,7 +93,7 @@ impl fmt::Display for EvalError {
             Self::RegionOutOfBounds => "region is outside the image bounds",
             Self::UpscaleWithoutFlag => {
                 "requested size exceeds the extracted region (use the ^ prefix)"
-            }
+            },
             Self::BelowOnePixel => "scaled size is below one pixel",
             Self::ExceedsLimits => "scaled size exceeds the published limits",
         };
@@ -111,9 +120,9 @@ pub fn evaluate(
     if out_w == 0 || out_h == 0 {
         return Err(EvalError::BelowOnePixel);
     }
-    if out_w > limits.max_width
-        || out_h > limits.max_height
-        || u64::from(out_w) * u64::from(out_h) > limits.max_area
+    if out_w > limits.width
+        || out_h > limits.height
+        || u64::from(out_w) * u64::from(out_h) > limits.area
     {
         return Err(EvalError::ExceedsLimits);
     }
@@ -148,7 +157,7 @@ fn resolve_region(region: Region, full_w: u32, full_h: u32) -> Result<CropRect, 
                 w: side,
                 h: side,
             })
-        }
+        },
         Region::Pixels { x, y, w, h } => {
             if x >= full_w || y >= full_h {
                 return Err(EvalError::RegionOutOfBounds);
@@ -159,7 +168,7 @@ fn resolve_region(region: Region, full_w: u32, full_h: u32) -> Result<CropRect, 
                 w: w.min(full_w - x),
                 h: h.min(full_h - y),
             })
-        }
+        },
         Region::Percent { x, y, w, h } => {
             let px = round_u32(x / 100.0 * f64::from(full_w));
             let py = round_u32(y / 100.0 * f64::from(full_h));
@@ -177,7 +186,7 @@ fn resolve_region(region: Region, full_w: u32, full_h: u32) -> Result<CropRect, 
                 w: pw.min(full_w - px),
                 h: ph.min(full_h - py),
             })
-        }
+        },
     }
 }
 
@@ -199,31 +208,31 @@ fn resolve_size(
                 floor_u32((rw * scale).max(1.0)),
                 floor_u32((rh * scale).max(1.0)),
             )
-        }
+        },
         SizeKind::Width(w) => {
             if !size.upscale && w > region_w {
                 return Err(EvalError::UpscaleWithoutFlag);
             }
             let scale = f64::from(w) / rw;
             (w, round_u32(rh * scale))
-        }
+        },
         SizeKind::Height(h) => {
             if !size.upscale && h > region_h {
                 return Err(EvalError::UpscaleWithoutFlag);
             }
             let scale = f64::from(h) / rh;
             (round_u32(rw * scale), h)
-        }
+        },
         SizeKind::Percent(pct) => {
             let scale = pct / 100.0;
             (round_u32(rw * scale), round_u32(rh * scale))
-        }
+        },
         SizeKind::WidthHeight(w, h) => {
             if !size.upscale && (w > region_w || h > region_h) {
                 return Err(EvalError::UpscaleWithoutFlag);
             }
             (w, h)
-        }
+        },
         SizeKind::Confined(w, h) => {
             let fit = (f64::from(w) / rw).min(f64::from(h) / rh);
             // A confining box strictly larger than the region can only be
@@ -233,7 +242,7 @@ fn resolve_size(
                 return Err(EvalError::UpscaleWithoutFlag);
             }
             (round_u32(rw * fit), round_u32(rh * fit))
-        }
+        },
     };
     let upscales = out_w > region_w || out_h > region_h;
     if upscales && !size.upscale {
@@ -248,16 +257,16 @@ fn resolve_size(
 
 /// The largest scale of `rw`×`rh` that stays inside every limit.
 fn limit_fit_scale(rw: f64, rh: f64, limits: Limits) -> f64 {
-    let by_width = f64::from(limits.max_width) / rw;
-    let by_height = f64::from(limits.max_height) / rh;
-    let by_area = (limits.max_area.to_f64().unwrap_or(f64::MAX) / (rw * rh)).sqrt();
+    let by_width = f64::from(limits.width) / rw;
+    let by_height = f64::from(limits.height) / rh;
+    let by_area = (limits.area.to_f64().unwrap_or(f64::MAX) / (rw * rh)).sqrt();
     by_width.min(by_height).min(by_area)
 }
 
 impl Plan {
     /// Whether the extracted region is the entire image.
     #[must_use]
-    pub fn is_full_region(&self) -> bool {
+    pub const fn is_full_region(&self) -> bool {
         self.crop.x == 0
             && self.crop.y == 0
             && self.crop.w == self.full_w
@@ -296,13 +305,19 @@ impl Plan {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test code: a panic here is the failure signal, not a crash path"
+    )]
+
     use super::*;
     use crate::grammar::Format;
 
     const LIMITS: Limits = Limits {
-        max_width: 10_000,
-        max_height: 10_000,
-        max_area: 100_000_000,
+        width: 10_000,
+        height: 10_000,
+        area: 100_000_000,
     };
 
     fn req(path: &str) -> ImageRequest {
@@ -334,9 +349,9 @@ mod tests {
     fn max_respects_area_limit() {
         // 20k×20k image: maxArea 100M forces scale sqrt(100e6/400e6)=0.5.
         let limits = Limits {
-            max_width: 20_000,
-            max_height: 20_000,
-            max_area: 100_000_000,
+            width: 20_000,
+            height: 20_000,
+            area: 100_000_000,
         };
         let plan = evaluate(&req("full/max/0/default.jpg"), 20_000, 20_000, limits).unwrap();
         assert_eq!((plan.out_w, plan.out_h), (10_000, 10_000));
@@ -443,7 +458,8 @@ mod tests {
     #[test]
     fn caret_max_scales_to_limits() {
         let plan = eval("full/^max/0/default.jpg", 500, 250).unwrap();
-        // Fit: width 10000/500=20, height 10000/250=40, area sqrt(1e8/125e3)≈28.28 → 20.
+        // Fit: width 10000/500=20, height 10000/250=40, area sqrt(1e8/125e3)≈28.28 →
+        // 20.
         assert_eq!((plan.out_w, plan.out_h), (10_000, 5_000));
         assert!(plan.upscales);
         assert_eq!(plan.canonical_path(), "full/^max/0/default.jpg");

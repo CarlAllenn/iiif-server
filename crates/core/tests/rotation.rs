@@ -1,19 +1,22 @@
 //! Arbitrary rotation semantics: canvas growth, transparent corners for
 //! PNG, white corners for JPEG, and interior pixel preservation.
 
-use iiif_core::codec::open_master;
-use iiif_core::eval::evaluate;
-use iiif_core::grammar::ImageRequest;
-use iiif_core::info::Limits;
-use iiif_core::pipeline;
-use std::fs::File;
-use std::io::Cursor;
-use std::path::PathBuf;
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test/bench code: a panic here is the failure signal, not a crash path"
+)]
+
+use std::{fs::File, io::Cursor, path::PathBuf};
+
+use iiif_core::{
+    codec::open_master, eval::evaluate, grammar::ImageRequest, info::Limits, pipeline,
+};
 
 const LIMITS: Limits = Limits {
-    max_width: 8192,
-    max_height: 8192,
-    max_area: 67_108_864,
+    width: 8192,
+    height: 8192,
+    area: 67_108_864,
 };
 
 fn serve(path: &str) -> Vec<u8> {

@@ -18,7 +18,8 @@ pre-commit:
   jobs:
     - name: fmt
       glob: "*.rs"
-      run: cargo fmt --all --check
+      # Pinned nightly rustfmt via the Taskfile (single source for the pin).
+      run: task lint:fmt-check
 
     - name: clippy
       glob: "*.rs"

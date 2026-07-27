@@ -8,9 +8,19 @@
 //! decomposition-level metadata exposure (yes: `Info::resolution_levels`
 //! and `Info::tile_layout`) and rayon pinning (`CpuDecodeParallelism`).
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test/bench code: a panic here is the failure signal, not a crash path"
+)]
+#![allow(
+    clippy::print_stdout,
+    reason = "spike harness: measured timings/deltas are the test's output"
+)]
+
+use std::{path::PathBuf, time::Instant};
+
 use j2k::{CpuDecodeParallelism, Downscale, J2kDecoder, J2kScratchPool, PixelFormat, Rect};
-use std::path::PathBuf;
-use std::time::Instant;
 
 const REGION: Rect = Rect {
     x: 3072,

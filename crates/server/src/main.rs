@@ -4,6 +4,12 @@
 //! Near-zero config: `iiif-server serve ./images` just works. The only
 //! deployment-varying values are the numeric limits and pool sizing.
 
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "server binary's check subcommand is a CLI: stdout is output, stderr diagnostics"
+)]
+
 use hyper::service::service_fn;
 use hyper_util::rt::TokioIo;
 use iiif_core::info::Limits;
@@ -14,13 +20,10 @@ use iiif_server::app::{App, SourceRoot};
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+use std::{net::SocketAddr, path::Path, process::ExitCode, sync::Arc};
+
 use iiif_sources::LocalRoot;
-use std::net::SocketAddr;
-use std::path::Path;
-use std::process::ExitCode;
-use std::sync::Arc;
-use tokio::net::TcpListener;
-use tokio::sync::Semaphore;
+use tokio::{net::TcpListener, sync::Semaphore};
 use tracing::{error, info};
 
 /// Deployment knobs, all optional. Parsed by hand: seven flags do not
@@ -59,11 +62,11 @@ fn run_check(path: &Path) -> ExitCode {
                     for child in children.flatten() {
                         walk.push(child.path());
                     }
-                }
+                },
                 Err(e) => {
                     eprintln!("{}: unreadable directory: {e}", entry.display());
                     failures += 1;
-                }
+                },
             }
             continue;
         }
@@ -87,11 +90,11 @@ fn run_check(path: &Path) -> ExitCode {
                 for advisory in master.advisories() {
                     println!("  advice: {advisory}");
                 }
-            }
+            },
             Err(message) => {
                 println!("{}: REJECTED — {message}", entry.display());
                 failures += 1;
-            }
+            },
         }
     }
     println!("checked {checked} file(s), {failures} rejected");
@@ -105,7 +108,7 @@ fn run_check(path: &Path) -> ExitCode {
 fn parse_args(args: &[String]) -> Result<Config, String> {
     let mut it = args.iter();
     match it.next().map(String::as_str) {
-        Some("serve") => {}
+        Some("serve") => {},
         _ => return Err(USAGE.to_owned()),
     }
     let root = it.next().ok_or(USAGE)?.clone();
@@ -126,19 +129,19 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
             "--bind" => config.bind = value.parse().map_err(|e| format!("--bind: {e}"))?,
             "--max-width" => {
                 config.max_width = value.parse().map_err(|e| format!("--max-width: {e}"))?;
-            }
+            },
             "--max-height" => {
                 config.max_height = value.parse().map_err(|e| format!("--max-height: {e}"))?;
-            }
+            },
             "--max-area" => {
                 config.max_area = value.parse().map_err(|e| format!("--max-area: {e}"))?;
-            }
+            },
             "--workers" => {
                 config.workers = value.parse().map_err(|e| format!("--workers: {e}"))?;
-            }
+            },
             "--queue-depth" => {
                 config.queue_depth = value.parse().map_err(|e| format!("--queue-depth: {e}"))?;
-            }
+            },
             "--public-base" => config.public_base = Some(value.clone()),
             "--endpoint" => config.endpoint = Some(value.clone()),
             other => return Err(format!("unknown flag {other}\n{USAGE}")),
@@ -170,21 +173,21 @@ fn main() -> ExitCode {
         Err(message) => {
             eprintln!("{message}");
             return ExitCode::FAILURE;
-        }
+        },
     };
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
         Err(e) => {
             error!("runtime startup failed: {e}");
             return ExitCode::FAILURE;
-        }
+        },
     };
     match runtime.block_on(serve(config)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             error!("{message}");
             ExitCode::FAILURE
-        }
+        },
     }
 }
 
@@ -204,9 +207,9 @@ async fn serve(config: Config) -> Result<(), String> {
     let app = Arc::new(App {
         root,
         limits: Limits {
-            max_width: config.max_width,
-            max_height: config.max_height,
-            max_area: config.max_area,
+            width: config.max_width,
+            height: config.max_height,
+            area: config.max_area,
         },
         public_base: config.public_base,
         admission: Arc::new(Semaphore::new(config.workers + config.queue_depth)),
@@ -228,7 +231,7 @@ async fn serve(config: Config) -> Result<(), String> {
             Err(e) => {
                 error!("accept: {e}");
                 continue;
-            }
+            },
         };
         let app = Arc::clone(&app);
         tokio::spawn(async move {

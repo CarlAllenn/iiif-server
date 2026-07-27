@@ -1,0 +1,42 @@
+---
+name: Dependency review
+
+# PR-time supply-chain gate: fails the PR when it introduces a dependency
+# with a known vulnerability or an unacceptable license — earlier in the
+# pipeline than cargo-deny's scheduled advisories run catches it on main
+# (issue #8). Overlap with cargo-deny is deliberate: different layer,
+# different moment.
+
+"on": pull_request
+
+permissions:
+  contents: read
+
+# Superseded runs on the same PR are safe to cancel — the newest push is the
+# only diff that matters.
+concurrency:
+  group: dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    steps:
+      # First step of every job, before checkout: runtime egress audit —
+      # enforcement per issue #6 canon (allowlist derived from audit run;
+      # templates/ci/ in renovate-config).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            github.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: low
+          comment-summary-in-pr: on-failure

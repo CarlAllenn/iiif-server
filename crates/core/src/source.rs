@@ -1,12 +1,13 @@
 //! The source-read seam — a founding interface (see design spec,
-//! Architecture). Everything that can hold a master image implements this:
-//! local files via read/mmap in `iiif-sources`, object stores via ranged
-//! GETs later. Decoders are sync and bridge at the boundary.
+//! Architecture).
+//!
+//! Everything that can hold a master image implements this: local files via
+//! read/mmap in `iiif-sources`, object stores via ranged GETs later. Decoders
+//! are sync and bridge at the boundary.
+
+use std::{fmt, future::Future, pin::Pin};
 
 use bytes::Bytes;
-use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
 
 /// Boxed future alias: the trait must be dyn-safe (sources are chosen at
 /// runtime), so methods return boxed futures rather than using AFIT.
@@ -32,8 +33,11 @@ pub enum SourceError {
     /// The requested range extends beyond the end of the source — always a
     /// caller bug or a truncated/changed master, never a client error.
     OutOfRange {
+        /// Requested start offset.
         offset: u64,
+        /// Requested byte count.
         len: u64,
+        /// Actual source length.
         source_len: u64,
     },
     /// Underlying I/O failure.

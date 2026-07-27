@@ -1,27 +1,36 @@
 //! The HTTP application: routing (the IIIF grammar *is* the router),
 //! spec-mandated response semantics, CORS, content negotiation, and
-//! backpressure. Pure request→response logic; `main.rs` owns sockets and
-//! runtime.
+//! backpressure.
+//!
+//! Pure request→response logic; `main.rs` owns sockets and runtime.
+
+use std::{
+    fmt,
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::Instant,
+};
 
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::header::{
-    ACCEPT, ALLOW, CACHE_CONTROL, CONTENT_TYPE, ETAG, HeaderValue, IF_NONE_MATCH, LINK, LOCATION,
-    RETRY_AFTER, VARY,
+use hyper::{
+    Method, Request, Response, StatusCode,
+    header::{
+        ACCEPT, ALLOW, CACHE_CONTROL, CONTENT_TYPE, ETAG, HeaderValue, IF_NONE_MATCH, LINK,
+        LOCATION, RETRY_AFTER, VARY,
+    },
 };
-use hyper::{Method, Request, Response, StatusCode};
-use iiif_core::codec::{CodecError, open_master};
-use iiif_core::encode::EncodeError;
-use iiif_core::eval::{EvalError, evaluate};
-use iiif_core::grammar::{ImageRequest, ParseError};
-use iiif_core::ident::Identifier;
-use iiif_core::info::{Info, Limits};
-use iiif_core::pipeline::{self, PipelineError};
-use iiif_core::source::SourceError;
+use iiif_core::{
+    codec::{CodecError, open_master},
+    encode::EncodeError,
+    eval::{EvalError, evaluate},
+    grammar::{ImageRequest, ParseError},
+    ident::Identifier,
+    info::{Info, Limits},
+    pipeline::{self, PipelineError},
+    source::SourceError,
+};
 use iiif_sources::{LocalFile, LocalRoot, ObjectRoot};
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::Semaphore;
 
 use crate::metrics::{Family, Metrics};
@@ -68,13 +77,26 @@ fn if_none_match_hits<B>(req: &Request<B>, etag: &str) -> bool {
         })
 }
 
+/// Finish a response builder whose inputs are statically valid. The builder
+/// only errors on malformed status codes or header values; every call site
+/// passes constants or already-validated strings, so the fallback exists
+/// purely to keep the server panic-free if that invariant ever breaks.
+fn built(res: hyper::http::Result<Response<Full<Bytes>>>) -> Response<Full<Bytes>> {
+    res.unwrap_or_else(|_| {
+        let mut fallback = Response::new(Full::new(Bytes::new()));
+        *fallback.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+        fallback
+    })
+}
+
 fn not_modified(etag: &str) -> Response<Full<Bytes>> {
-    Response::builder()
-        .status(StatusCode::NOT_MODIFIED)
-        .header(ETAG, etag)
-        .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
-        .body(Full::new(Bytes::new()))
-        .expect("valid response")
+    built(
+        Response::builder()
+            .status(StatusCode::NOT_MODIFIED)
+            .header(ETAG, etag)
+            .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
+            .body(Full::new(Bytes::new())),
+    )
 }
 
 /// The compliance-level profile documents, sent as a Link header on every
@@ -91,21 +113,21 @@ enum Version {
 }
 
 impl Version {
-    fn prefix(self) -> &'static str {
+    const fn prefix(self) -> &'static str {
         match self {
             Self::V2 => "iiif/2",
             Self::V3 => "iiif/3",
         }
     }
 
-    fn profile_link(self) -> &'static str {
+    const fn profile_link(self) -> &'static str {
         match self {
             Self::V2 => PROFILE_LINK_V2,
             Self::V3 => PROFILE_LINK,
         }
     }
 
-    fn ld_json(self) -> &'static str {
+    const fn ld_json(self) -> &'static str {
         match self {
             Self::V2 => LD_JSON_V2,
             Self::V3 => LD_JSON,
@@ -115,8 +137,11 @@ impl Version {
 
 /// Where masters come from: a local directory or an S3-compatible
 /// object store — the prefix→root map whose default size is one.
+#[derive(Debug)]
 pub enum SourceRoot {
+    /// Masters under a local directory.
     Local(LocalRoot),
+    /// Masters in an S3-compatible object store.
     Object(ObjectRoot),
 }
 
@@ -139,7 +164,7 @@ impl SourceRoot {
 }
 
 impl Resolved {
-    fn source_version(&self) -> (u64, u64) {
+    const fn source_version(&self) -> (u64, u64) {
         match self {
             Self::Local(file) => file.source_version(),
             Self::Object(_, version) => *version,
@@ -180,7 +205,9 @@ impl std::io::Seek for SourceReader {
 
 /// Shared server state: source root, limits, and the bounded decode pool.
 pub struct App {
+    /// Where masters are resolved from.
     pub root: SourceRoot,
+    /// Deployment size limits, published in info.json and enforced.
     pub limits: Limits,
     /// Public `scheme://authority/prefix` used to build `id` values,
     /// derived from the request Host header when absent.
@@ -193,9 +220,22 @@ pub struct App {
     pub decode_permits: Arc<Semaphore>,
     /// Worker-pool sizing, kept for the queue-depth gauges.
     pub workers: usize,
+    /// Admission queue length beyond the worker pool.
     pub queue_depth: usize,
     /// The frozen metric set (design spec, Observability).
     pub metrics: Arc<Metrics>,
+}
+
+impl fmt::Debug for App {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("App")
+            .field("root", &self.root)
+            .field("limits", &self.limits)
+            .field("public_base", &self.public_base)
+            .field("workers", &self.workers)
+            .field("queue_depth", &self.queue_depth)
+            .finish_non_exhaustive()
+    }
 }
 
 impl App {
@@ -206,7 +246,7 @@ impl App {
     ///
     /// Only if `hyper`'s response builder rejects statically valid
     /// header/status combinations — structurally impossible.
-    pub async fn handle<B>(self: Arc<Self>, req: Request<B>) -> Response<Full<Bytes>> {
+    pub async fn handle<B: Send + Sync>(self: Arc<Self>, req: Request<B>) -> Response<Full<Bytes>> {
         let started = Instant::now();
         let family = match Route::of(req.uri().path()) {
             Route::InfoJson { .. } => Family::Info,
@@ -219,7 +259,10 @@ impl App {
         response
     }
 
-    async fn handle_inner<B>(self: &Arc<Self>, req: Request<B>) -> Response<Full<Bytes>> {
+    async fn handle_inner<B: Send + Sync>(
+        self: &Arc<Self>,
+        req: Request<B>,
+    ) -> Response<Full<Bytes>> {
         let method = req.method().clone();
         if method == Method::OPTIONS {
             return preflight();
@@ -229,11 +272,12 @@ impl App {
         }
         let path = req.uri().path().to_owned();
         let mut response = match Route::of(&path) {
-            Route::Health => Response::builder()
-                .status(StatusCode::OK)
-                .header(CONTENT_TYPE, "text/plain")
-                .body(Full::new(Bytes::from_static(b"ok\n")))
-                .expect("static response"),
+            Route::Health => built(
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header(CONTENT_TYPE, "text/plain")
+                    .body(Full::new(Bytes::from_static(b"ok\n"))),
+            ),
             Route::Metrics => {
                 let in_flight = self
                     .workers
@@ -242,26 +286,30 @@ impl App {
                     .saturating_sub(self.admission.available_permits());
                 let queued = admitted.saturating_sub(in_flight);
                 let body = self.metrics.render(in_flight as u64, queued as u64);
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(CONTENT_TYPE, "text/plain; version=0.0.4")
-                    .body(Full::new(Bytes::from(body)))
-                    .expect("static response")
-            }
+                built(
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .header(CONTENT_TYPE, "text/plain; version=0.0.4")
+                        .body(Full::new(Bytes::from(body))),
+                )
+            },
             Route::BaseRedirect {
                 version,
                 identifier,
-            } => match Identifier::decode(identifier) {
-                Ok(id) => Response::builder()
-                    .status(StatusCode::SEE_OTHER)
-                    .header(
-                        LOCATION,
-                        format!("/{}/{}/info.json", version.prefix(), id.encoded()),
+            } => Identifier::decode(identifier).map_or_else(
+                |_| error(StatusCode::NOT_FOUND, "unknown identifier"),
+                |id| {
+                    built(
+                        Response::builder()
+                            .status(StatusCode::SEE_OTHER)
+                            .header(
+                                LOCATION,
+                                format!("/{}/{}/info.json", version.prefix(), id.encoded()),
+                            )
+                            .body(Full::new(Bytes::new())),
                     )
-                    .body(Full::new(Bytes::new()))
-                    .expect("static response"),
-                Err(_) => error(StatusCode::NOT_FOUND, "unknown identifier"),
-            },
+                },
+            ),
             Route::InfoJson {
                 version,
                 identifier,
@@ -279,7 +327,7 @@ impl App {
                     .map(str::to_owned);
                 self.image(version, identifier, rest, &base, if_none_match)
                     .await
-            }
+            },
             Route::None => error(StatusCode::NOT_FOUND, "no such resource"),
         };
         add_cors(&mut response);
@@ -289,7 +337,7 @@ impl App {
         response
     }
 
-    async fn info_json<B>(
+    async fn info_json<B: Sync>(
         &self,
         version: Version,
         raw_id: &str,
@@ -340,15 +388,16 @@ impl App {
         } else {
             "application/json"
         };
-        Response::builder()
-            .status(StatusCode::OK)
-            .header(CONTENT_TYPE, content_type)
-            .header(VARY, "Accept")
-            .header(LINK, version.profile_link())
-            .header(ETAG, etag)
-            .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
-            .body(Full::new(Bytes::from(body)))
-            .expect("valid response")
+        built(
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(CONTENT_TYPE, content_type)
+                .header(VARY, "Accept")
+                .header(LINK, version.profile_link())
+                .header(ETAG, etag)
+                .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
+                .body(Full::new(Bytes::from(body))),
+        )
     }
 
     async fn image(
@@ -399,10 +448,10 @@ impl App {
             master.set_internal_parallelism(pool_idle);
             let (full_w, full_h) = master.dimensions();
             let plan = evaluate(&request, full_w, full_h, limits).map_err(ImageFailure::Eval)?;
-            let canonical_path = match v2_spelling {
-                Some(v2) => iiif_core::v2::canonical_path(&plan, &v2),
-                None => plan.canonical_path(),
-            };
+            let canonical_path = v2_spelling.as_ref().map_or_else(
+                || plan.canonical_path(),
+                |v2| iiif_core::v2::canonical_path(&plan, v2),
+            );
             // ETag is derived from the canonical URI, so every spelling of
             // the same request revalidates against the same tag — and a
             // hit skips all pixel work.
@@ -440,15 +489,16 @@ impl App {
                     id.encoded(),
                     version.profile_link()
                 );
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(CONTENT_TYPE, plan.format.media_type())
-                    .header(LINK, canonical)
-                    .header(ETAG, etag)
-                    .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
-                    .body(Full::new(Bytes::from(bytes)))
-                    .expect("valid response")
-            }
+                built(
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .header(CONTENT_TYPE, plan.format.media_type())
+                        .header(LINK, canonical)
+                        .header(ETAG, etag)
+                        .header(CACHE_CONTROL, CACHE_CONTROL_VALUE)
+                        .body(Full::new(Bytes::from(bytes))),
+                )
+            },
             Ok(Err(failure)) => failure.into_response(),
             Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "decode task failed"),
         }
@@ -570,24 +620,26 @@ fn add_cors(response: &mut Response<Full<Bytes>>) {
 }
 
 fn preflight() -> Response<Full<Bytes>> {
-    let mut response = Response::builder()
-        .status(StatusCode::NO_CONTENT)
-        .header(ALLOW, "GET, HEAD, OPTIONS")
-        .header("access-control-allow-methods", "GET, HEAD, OPTIONS")
-        .header("access-control-allow-headers", "Accept")
-        .header("access-control-max-age", "86400")
-        .body(Full::new(Bytes::new()))
-        .expect("static response");
+    let mut response = built(
+        Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header(ALLOW, "GET, HEAD, OPTIONS")
+            .header("access-control-allow-methods", "GET, HEAD, OPTIONS")
+            .header("access-control-allow-headers", "Accept")
+            .header("access-control-max-age", "86400")
+            .body(Full::new(Bytes::new())),
+    );
     add_cors(&mut response);
     response
 }
 
 fn error(status: StatusCode, message: &str) -> Response<Full<Bytes>> {
-    Response::builder()
-        .status(status)
-        .header(CONTENT_TYPE, "text/plain; charset=utf-8")
-        .body(Full::new(Bytes::from(format!("{message}\n"))))
-        .expect("valid response")
+    built(
+        Response::builder()
+            .status(status)
+            .header(CONTENT_TYPE, "text/plain; charset=utf-8")
+            .body(Full::new(Bytes::from(format!("{message}\n")))),
+    )
 }
 
 fn overloaded() -> Response<Full<Bytes>> {

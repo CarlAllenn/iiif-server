@@ -60,6 +60,10 @@ FROM eclipse-temurin:25-jre-noble@sha256:2f1da100788559b397bcf48c736169ea5b070bd
 
 # Current security patches for the base's OS packages (temurin images lag
 # Ubuntu's archive between rebuilds); versionless by necessity, upgrade-only.
+# DL3008 (pin apt versions): Ubuntu's archive rotates point releases out,
+# so a pinned bench-harness build would break on rebuild; upgrade-only is
+# the recorded posture here (nothing from this image ships).
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends libopenjp2-tools \

@@ -1,5 +1,11 @@
 //! Identifier decoding: the security component gets its own test file.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test/bench code: a panic here is the failure signal, not a crash path"
+)]
+
 use iiif_core::ident::{Identifier, IdentifierError};
 use proptest::prelude::*;
 
@@ -83,7 +89,7 @@ proptest! {
     /// Decoding never panics on arbitrary input.
     #[test]
     fn decode_never_panics(raw in "\\PC*") {
-        let _ = Identifier::decode(&raw);
+        drop(Identifier::decode(&raw));
     }
 
     /// Whatever decodes successfully never contains traversal segments.

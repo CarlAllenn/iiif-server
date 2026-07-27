@@ -1,10 +1,14 @@
-//! Hand-rolled Prometheus text exposition — the fixed, frozen metric set
-//! from the design spec: request counts, latency histogram, worker-queue
-//! depth, 503 count. Zero dependencies, zero knobs, permanent surface.
+//! Hand-rolled Prometheus text exposition — the fixed, frozen metric set from
+//! the design spec: request counts, latency histogram, worker-queue depth, 503
+//! count.
+//!
+//! Zero dependencies, zero knobs, permanent surface.
 
-use std::fmt::Write as _;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
+use std::{
+    fmt::Write as _,
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
 
 /// Upper bounds (seconds) of the latency histogram buckets, plus +Inf.
 const BUCKETS: [f64; 10] = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 10.0];
@@ -29,12 +33,16 @@ pub struct Metrics {
 /// Which request family a hit belongs to, for the counter labels.
 #[derive(Debug, Clone, Copy)]
 pub enum Family {
+    /// info.json requests.
     Info,
+    /// Image (pixel) requests.
     Image,
+    /// Everything else (health, favicon, errors).
     Other,
 }
 
 impl Metrics {
+    /// Record one finished request in its family's counters/histogram.
     pub fn observe(&self, family: Family, status: u16, elapsed: Duration) {
         match family {
             Family::Info => &self.requests_info,

@@ -5,12 +5,20 @@
 //! Ignored by default so `cargo test` stays hermetic; the spike runner
 //! executes with `--ignored`.
 
-use iiif_core::codec::TiffPyramid;
-use iiif_core::image::Raster;
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test/bench code: a panic here is the failure signal, not a crash path"
+)]
+#![allow(
+    clippy::print_stdout,
+    reason = "spike harness: measured timings/deltas are the test's output"
+)]
+
+use std::{fs::File, path::PathBuf, time::Instant};
+
+use iiif_core::{codec::TiffPyramid, image::Raster};
 use num_traits::cast::ToPrimitive;
-use std::fs::File;
-use std::path::PathBuf;
-use std::time::Instant;
 
 fn generated(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

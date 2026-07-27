@@ -1,0 +1,6 @@
+# msrv mirrors [workspace.package] rust-version — same single source of truth
+# the MSRV CI job derives from; a drift between the two is a bug.
+msrv = "1.96"
+# Pre-1.0 (and pre-naming — nothing published): API-breaking clippy
+# suggestions are wanted, not suppressed.
+avoid-breaking-exported-api = false

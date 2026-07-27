@@ -2,21 +2,29 @@
 //! mirror/rotate → encode. Pure compute; the caller owns threading and
 //! backpressure.
 
-use crate::codec::{CodecError, Master};
-use crate::encode::{EncodeError, encode};
-use crate::eval::Plan;
-use crate::grammar::Quality;
-use crate::image::{Raster, RasterError};
+use std::fmt;
+
 use fast_image_resize as fir;
 use num_traits::cast::ToPrimitive;
-use std::fmt;
+
+use crate::{
+    codec::{CodecError, Master},
+    encode::{EncodeError, encode},
+    eval::Plan,
+    grammar::Quality,
+    image::{Raster, RasterError},
+};
 
 /// Pipeline failure, split by who caused it.
 #[derive(Debug)]
 pub enum PipelineError {
+    /// Decoding the master failed.
     Codec(CodecError),
+    /// Encoding the output failed.
     Encode(EncodeError),
+    /// Raster geometry/buffer invariant broke.
     Raster(RasterError),
+    /// The resize step failed.
     Resize(String),
 }
 
@@ -57,9 +65,9 @@ impl From<RasterError> for PipelineError {
 ///
 /// See [`PipelineError`].
 pub fn execute(source: &mut dyn Master, plan: &Plan) -> Result<Vec<u8>, PipelineError> {
-    // 1. Decode the crop with enough detail for the output scale; the
-    //    codec picks its own cheapest path (pyramid level, reduced-
-    //    resolution wavelet decode, or resident raster).
+    // 1. Decode the crop with enough detail for the output scale; the codec picks
+    //    its own cheapest path (pyramid level, reduced- resolution wavelet decode,
+    //    or resident raster).
     let needed = f64::from(plan.crop.w) / f64::from(plan.out_w.max(1));
     let raster = source.decode_crop(plan.crop, needed)?;
 

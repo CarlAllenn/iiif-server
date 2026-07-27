@@ -9,10 +9,20 @@
 //!
 //! Run: `cargo run --release -p iiif-sources --example objstore_spike`
 
-use object_store::aws::AmazonS3Builder;
-use object_store::path::Path as ObjectPath;
-use object_store::{GetOptions, GetRange, ObjectStore, ObjectStoreExt, PutPayload};
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "diagnostic spike harness: prints findings, panics are failures"
+)]
+
 use std::time::Instant;
+
+use object_store::{
+    GetOptions, GetRange, ObjectStore, ObjectStoreExt, PutPayload, aws::AmazonS3Builder,
+    path::Path as ObjectPath,
+};
 
 /// Nearest-rank percentile; integer arithmetic keeps it exact.
 fn percentile(sorted: &[f64], pct: usize) -> f64 {
@@ -115,7 +125,7 @@ async fn main() {
                 ..GetOptions::default()
             };
             let result = store.get_opts(&path, options).await.expect("read");
-            let _ = result.bytes().await.expect("body");
+            drop(result.bytes().await.expect("body"));
         }
         opens.push(started.elapsed().as_secs_f64() * 1000.0);
     }

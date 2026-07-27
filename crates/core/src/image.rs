@@ -4,8 +4,9 @@
 //! handling (16-bit, planar, subsampled YCbCr) at the decoder layer, which
 //! normalizes to these working rasters.
 
-use num_traits::cast::ToPrimitive;
 use std::fmt;
+
+use num_traits::cast::ToPrimitive;
 
 /// An owned 8-bit raster, tightly packed, row-major.
 ///
@@ -17,26 +18,38 @@ use std::fmt;
 pub enum Raster {
     /// Single channel, 1 byte per pixel.
     Gray8 {
+        /// Width in pixels.
         width: u32,
+        /// Height in pixels.
         height: u32,
+        /// Row-major samples, tightly packed.
         data: Vec<u8>,
     },
     /// Three channels, RGB order, 3 bytes per pixel.
     Rgb8 {
+        /// Width in pixels.
         width: u32,
+        /// Height in pixels.
         height: u32,
+        /// Row-major samples, tightly packed.
         data: Vec<u8>,
     },
     /// Gray + alpha, 2 bytes per pixel.
     GrayA8 {
+        /// Width in pixels.
         width: u32,
+        /// Height in pixels.
         height: u32,
+        /// Row-major samples, tightly packed.
         data: Vec<u8>,
     },
     /// RGB + alpha, 4 bytes per pixel.
     Rgba8 {
+        /// Width in pixels.
         width: u32,
+        /// Height in pixels.
         height: u32,
+        /// Row-major samples, tightly packed.
         data: Vec<u8>,
     },
 }
@@ -57,7 +70,10 @@ impl std::error::Error for RasterError {}
 
 /// BT.601 luma of one RGB pixel.
 fn luma_of(r: u8, g: u8, b: u8) -> u8 {
-    let luma = 0.299 * f64::from(r) + 0.587 * f64::from(g) + 0.114 * f64::from(b);
+    let luma = 0.114f64.mul_add(
+        f64::from(b),
+        0.587f64.mul_add(f64::from(g), 0.299 * f64::from(r)),
+    );
     luma.round().clamp(0.0, 255.0).to_u8().unwrap_or(255)
 }
 
@@ -71,15 +87,20 @@ fn composite_channel(value: u8, alpha: u8) -> u8 {
 /// A source rectangle for [`Raster::blit`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CopyRect {
+    /// Left edge in the source raster.
     pub src_x: u32,
+    /// Top edge in the source raster.
     pub src_y: u32,
+    /// Copied width in pixels.
     pub width: u32,
+    /// Copied height in pixels.
     pub height: u32,
 }
 
 impl Raster {
+    /// Width in pixels.
     #[must_use]
-    pub fn width(&self) -> u32 {
+    pub const fn width(&self) -> u32 {
         match self {
             Self::Gray8 { width, .. }
             | Self::Rgb8 { width, .. }
@@ -88,8 +109,9 @@ impl Raster {
         }
     }
 
+    /// Height in pixels.
     #[must_use]
-    pub fn height(&self) -> u32 {
+    pub const fn height(&self) -> u32 {
         match self {
             Self::Gray8 { height, .. }
             | Self::Rgb8 { height, .. }
@@ -98,8 +120,9 @@ impl Raster {
         }
     }
 
+    /// Samples per pixel (1, 2, 3 or 4).
     #[must_use]
-    pub fn channels(&self) -> u32 {
+    pub const fn channels(&self) -> u32 {
         match self {
             Self::Gray8 { .. } => 1,
             Self::GrayA8 { .. } => 2,
@@ -108,6 +131,7 @@ impl Raster {
         }
     }
 
+    /// The raw row-major sample buffer.
     #[must_use]
     pub fn data(&self) -> &[u8] {
         match self {
@@ -209,7 +233,7 @@ impl Raster {
         Ok(())
     }
 
-    fn data_mut(&mut self) -> &mut Vec<u8> {
+    const fn data_mut(&mut self) -> &mut Vec<u8> {
         match self {
             Self::Gray8 { data, .. }
             | Self::Rgb8 { data, .. }
@@ -245,12 +269,12 @@ impl Raster {
                 let mut out = self;
                 out.rotate_180();
                 out
-            }
+            },
             3 => {
                 let mut out = self.rotated_90();
                 out.rotate_180();
                 out
-            }
+            },
             _ => self,
         }
     }
@@ -325,7 +349,7 @@ impl Raster {
                     height,
                     data: gray,
                 }
-            }
+            },
             Self::Rgba8 {
                 width,
                 height,
@@ -340,7 +364,7 @@ impl Raster {
                     height,
                     data: gray,
                 }
-            }
+            },
         }
     }
 
@@ -362,7 +386,7 @@ impl Raster {
                     height,
                     data,
                 }
-            }
+            },
             Self::GrayA8 {
                 width,
                 height,
@@ -376,7 +400,7 @@ impl Raster {
                     height,
                     data,
                 }
-            }
+            },
             other => other, // unreachable: into_gray never returns RGB
         }
     }
@@ -390,8 +414,8 @@ impl Raster {
         let (sin, cos) = theta.sin_cos();
         let src_w = f64::from(self.width());
         let src_h = f64::from(self.height());
-        let out_w = (src_w * cos.abs() + src_h * sin.abs()).ceil().max(1.0);
-        let out_h = (src_w * sin.abs() + src_h * cos.abs()).ceil().max(1.0);
+        let out_w = src_h.mul_add(sin.abs(), src_w * cos.abs()).ceil().max(1.0);
+        let out_h = src_h.mul_add(cos.abs(), src_w * sin.abs()).ceil().max(1.0);
         let canvas_w = out_w.to_u32().unwrap_or(u32::MAX);
         let canvas_h = out_h.to_u32().unwrap_or(u32::MAX);
         let gray = matches!(self, Self::Gray8 { .. } | Self::GrayA8 { .. });
@@ -427,10 +451,14 @@ impl Raster {
                     let sample = |x: usize, y: usize| {
                         f64::from(data[(y * columns + x) * src_channels + channel])
                     };
-                    let value = sample(x0, y0) * (1.0 - fx) * (1.0 - fy)
-                        + sample(x1, y0) * fx * (1.0 - fy)
-                        + sample(x0, y1) * (1.0 - fx) * fy
-                        + sample(x1, y1) * fx * fy;
+                    let value = (sample(x1, y1) * fx).mul_add(
+                        fy,
+                        (sample(x0, y1) * (1.0 - fx)).mul_add(
+                            fy,
+                            (sample(x1, y0) * fx)
+                                .mul_add(1.0 - fy, sample(x0, y0) * (1.0 - fx) * (1.0 - fy)),
+                        ),
+                    );
                     out[out_off + channel] = value.round().clamp(0.0, 255.0).to_u8().unwrap_or(255);
                 }
                 out[out_off + out_channels - 1] = 255; // opaque interior
@@ -471,7 +499,7 @@ impl Raster {
                     height,
                     data: flat,
                 }
-            }
+            },
             Self::Rgba8 {
                 width,
                 height,
@@ -486,7 +514,7 @@ impl Raster {
                     height,
                     data: flat,
                 }
-            }
+            },
         }
     }
 }

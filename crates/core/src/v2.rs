@@ -1,4 +1,6 @@
-//! Image API 2.1 translation layer: the full 18-feature v2.1 endpoint
+//! Image API 2.1 translation layer.
+//!
+//! The full 18-feature v2.1 endpoint
 //! expressed over the same engine (design spec: `full`↔`max` aliasing,
 //! profile-array info.json, `@id` vs `id`, `sizeAboveFull` mapped to the
 //! upscale path, `sizeByDistortedWh` as non-aspect `w,h`).
@@ -6,20 +8,24 @@
 //! v2 requests parse into the same [`ImageRequest`] the engine evaluates;
 //! only the size grammar and the document/canonical spellings differ.
 
-use crate::eval::Plan;
-use crate::grammar::{
-    Component, Format, ImageRequest, ParseError, Quality, Region, Rotation, Size, SizeKind,
+use crate::{
+    eval::Plan,
+    grammar::{
+        Component, Format, ImageRequest, ParseError, Quality, Region, Rotation, Size, SizeKind,
+    },
+    info::{ImageDescription, Limits},
 };
-use crate::info::{ImageDescription, Limits};
 
 /// A parsed v2.1 request plus what the v2 canonical form needs to
 /// remember about the original size spelling.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct V2Request {
+    /// The request mapped onto v3 semantics.
     pub request: ImageRequest,
     /// v2 canonical size is `w,` for aspect-preserving forms, `w,h` for
     /// the distorted form, `full` for the full-size aliases.
     pub aspect_preserved: bool,
+    /// Whether the size was a full-size alias (`full`, `max`).
     pub was_full: bool,
 }
 
@@ -194,9 +200,9 @@ pub fn info_json(id: &str, image: &ImageDescription, limits: Limits) -> String {
                 "formats": FORMATS,
                 "qualities": QUALITIES,
                 "supports": SUPPORTS_BEYOND_LEVEL2,
-                "maxWidth": limits.max_width,
-                "maxHeight": limits.max_height,
-                "maxArea": limits.max_area,
+                "maxWidth": limits.width,
+                "maxHeight": limits.height,
+                "maxArea": limits.area,
             }
         ],
     });
@@ -206,18 +212,28 @@ pub fn info_json(id: &str, image: &ImageDescription, limits: Limits) -> String {
     if !tiles.is_empty() {
         document["tiles"] = tiles.into();
     }
+    #[allow(
+        clippy::expect_used,
+        reason = "map-free static shape: to_string cannot fail"
+    )]
     serde_json::to_string(&document).expect("static shape")
 }
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test code: a panic here is the failure signal, not a crash path"
+    )]
+
     use super::*;
     use crate::eval::evaluate;
 
     const LIMITS: Limits = Limits {
-        max_width: 4000,
-        max_height: 4000,
-        max_area: 16_000_000,
+        width: 4000,
+        height: 4000,
+        area: 16_000_000,
     };
 
     #[test]

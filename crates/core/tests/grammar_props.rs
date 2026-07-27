@@ -1,6 +1,12 @@
 //! Property tests: parse ↔ print round-trips for the whole grammar, plus
 //! parser total-safety (never panics on arbitrary input).
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test/bench code: a panic here is the failure signal, not a crash path"
+)]
+
 use iiif_core::grammar::{Format, ImageRequest, Quality, Region, Rotation, Size, SizeKind};
 use proptest::prelude::*;
 
@@ -8,10 +14,7 @@ use proptest::prelude::*;
 /// generated value has an exact spelling the parser accepts.
 fn decimal_f64(int_max: u32) -> impl Strategy<Value = f64> {
     (0..=int_max, proptest::option::of("[0-9]{1,6}")).prop_map(|(int, frac)| {
-        let s = match frac {
-            Some(frac) => format!("{int}.{frac}"),
-            None => format!("{int}"),
-        };
+        let s = frac.map_or_else(|| format!("{int}"), |frac| format!("{int}.{frac}"));
         s.parse().unwrap()
     })
 }
@@ -135,22 +138,26 @@ proptest! {
     /// The parser is total: arbitrary bytes never panic it.
     #[test]
     fn parser_never_panics(s in "\\PC*") {
-        let _ = ImageRequest::parse(&s);
-        let _ = Region::parse(&s);
-        let _ = Size::parse(&s);
-        let _ = Rotation::parse(&s);
-        let _ = Quality::parse(&s);
-        let _ = Format::parse(&s);
+        drop(ImageRequest::parse(&s));
+        drop(Region::parse(&s));
+        drop(Size::parse(&s));
+        drop(Rotation::parse(&s));
+        drop(Quality::parse(&s));
+        drop(Format::parse(&s));
     }
 
     /// Parsing accepts leading zeros but prints them away (canonical), and
     /// reparse of the canonical form equals the original parse.
     #[test]
-    fn leading_zero_normalization(x in 0u32..1000, y in 0u32..1000, w in 1u32..1000, h in 1u32..1000) {
+    fn leading_zero_normalization(
+        x in 0u32..1000, y in 0u32..1000, w in 1u32..1000, h in 1u32..1000
+    ) {
         let padded = format!("{x:07},{y:07},{w:07},{h:07}");
         let parsed = Region::parse(&padded).unwrap();
         let canonical = parsed.to_string();
         prop_assert_eq!(Region::parse(&canonical).unwrap(), parsed);
-        prop_assert!(!canonical.contains(",0") || canonical.split(',').all(|p| p == "0" || !p.starts_with('0')));
+        let no_leading_zeros =
+            canonical.split(',').all(|p| p == "0" || !p.starts_with('0'));
+        prop_assert!(!canonical.contains(",0") || no_leading_zeros);
     }
 }
