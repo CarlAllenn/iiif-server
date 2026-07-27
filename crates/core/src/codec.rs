@@ -44,11 +44,11 @@ pub const MAX_RESIDENT_PIXELS: u64 = 268_435_456;
 ///
 /// # Errors
 ///
-/// [`CodecError::Unsupported`] with the conversion advice.
+/// [`CodecError::LimitExceeded`] with the conversion advice.
 pub fn guard_resident_pixels(width: u32, height: u32) -> Result<(), CodecError> {
     let pixels = u64::from(width) * u64::from(height);
     if pixels > MAX_RESIDENT_PIXELS {
-        return Err(CodecError::Unsupported(format!(
+        return Err(CodecError::LimitExceeded(format!(
             "{width}×{height} exceeds the whole-decode ceiling of {MAX_RESIDENT_PIXELS} \
             pixels; masters this large must be pyramidal: vips tiffsave in out.tif \
             --tile --pyramid --compression jpeg"
@@ -178,6 +178,12 @@ pub enum CodecError {
     Unsupported(String),
     /// The master is malformed.
     Corrupt(String),
+    /// The master is valid but serving it would exceed a deliberate
+    /// resource ceiling — a refusal, not a failure. Distinct from
+    /// [`Self::Unsupported`] so the HTTP layer can answer 4xx instead of
+    /// telling operators the file is broken and monitoring the server is
+    /// failing.
+    LimitExceeded(String),
     /// Pixel bookkeeping failed (internal bug).
     Raster(RasterError),
 }
@@ -187,6 +193,7 @@ impl fmt::Display for CodecError {
         match self {
             Self::Unsupported(msg) => write!(f, "unsupported master: {msg}"),
             Self::Corrupt(msg) => write!(f, "corrupt master: {msg}"),
+            Self::LimitExceeded(msg) => write!(f, "limit exceeded: {msg}"),
             Self::Raster(e) => write!(f, "pixel bookkeeping: {e}"),
         }
     }
