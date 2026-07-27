@@ -159,8 +159,9 @@ tasks:
     method: checksum
     sources:
       - "**/Dockerfile"
+      - .hadolint.yaml
     cmds:
-      - hadolint tools/bench/cantaloupe/Dockerfile
+      - hadolint --config .hadolint.yaml tools/bench/cantaloupe/Dockerfile
 
   lint:shell:
     desc: shellcheck + shfmt (check mode) over shell scripts

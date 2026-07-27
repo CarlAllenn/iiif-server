@@ -1,0 +1,17 @@
+---
+# hadolint canon: renovate-config templates/hadolint/ — drift-audited.
+# Max enforcement: style-or-above fails, inline pragmas disabled; every
+# exemption is config-level here with its reason.
+failure-threshold: style
+disable-ignore-pragma: true
+trustedRegistries:
+  - docker.io
+strict-labels: false
+ignored:
+  # DL3005 (canonical): apt-get upgrade keeps base-OS security patches
+  # current between base-image rebuilds; style loses to patch posture.
+  - DL3005
+  # DL3008 (this repo): Ubuntu's archive rotates point releases out, so
+  # pinned apt versions break rebuilds of the Cantaloupe bench harness —
+  # a non-shipping comparison image.
+  - DL3008
