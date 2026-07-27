@@ -674,6 +674,14 @@ fn codec_error(e: &CodecError) -> Response<Full<Bytes>> {
             StatusCode::INTERNAL_SERVER_ERROR,
             &format!("corrupt master: {msg}"),
         ),
+        // A deliberate resource-ceiling refusal: the master is fine and
+        // the server is healthy, so a 500 would misdirect both operators
+        // and monitoring. 403 is the Image API's status for a refused
+        // operation (also the incumbent's answer for its max_pixels
+        // ceiling); the message carries the conversion advice.
+        CodecError::LimitExceeded(msg) => {
+            error(StatusCode::FORBIDDEN, &format!("limit exceeded: {msg}"))
+        },
         CodecError::Raster(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "pipeline failure"),
     }
 }

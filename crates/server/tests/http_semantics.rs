@@ -173,6 +173,29 @@ async fn error_semantics() {
 }
 
 #[tokio::test]
+async fn resident_pixel_ceiling_refusal_is_a_403_not_a_500() {
+    // A master whose declared dimensions exceed the whole-decode ceiling
+    // is refused, not broken: the status must say "deliberate limit"
+    // (403, the Image API's refused-operation status) rather than
+    // "corrupt master" 500, and the body must carry the conversion
+    // advice.
+    use http_body_util::BodyExt;
+    let app = app();
+    let response = get(
+        &app,
+        "/iiif/3/bomb_declared_512x16777335.png/full/max/0/default.jpg",
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = String::from_utf8(body.to_vec()).unwrap();
+    assert!(
+        body.contains("limit exceeded") && body.contains("pyramidal"),
+        "refusal body must name the limit and the fix: {body}"
+    );
+}
+
+#[tokio::test]
 async fn saturated_queue_returns_503_with_retry_after() {
     let app = Arc::new(App {
         root: fixture_root(),
