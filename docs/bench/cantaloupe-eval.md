@@ -225,6 +225,56 @@ partial-grid native tile 34.4 ms vs Cantaloupe's 84.9 ms). Cache-on
 stays as documented above — a derivative cache answers repeat traffic
 for any origin latency, and is orthogonal to these numbers.
 
+## Decode-stack rerun (2026-07-27, tile-skip + arbitrary-depth decode)
+
+Two further decode changes landed after the post-fix rerun (consumed in
+PR #40): region decode skips codestream tiles that cannot intersect the
+requested region (previously every tile's decode workspace was built
+per request, a fixed cost proportional to the master's total tile
+count), and reduced-resolution decode walks the codestream's full
+resolution ladder instead of stopping at 1/8 and resampling. Identical
+corpus, harness, and hardware; the Cantaloupe columns are carried from
+the post-fix table (its image is unchanged).
+
+Warm, derivative-cache-off, p50/p99 in ms, 30 reps:
+
+| case | ours p50 | Cantaloupe p50 | ratio | ours p99 |
+| --- | --- | --- | --- | --- |
+| TIFF pyr deflate, native tile | **3.8** | 21.0 | 0.18× | 4.0 |
+| TIFF pyr deflate, full → 512 | **9.6** | 25.1 | 0.38× | 9.9 |
+| TIFF pyr JPEG, native tile | **2.9** | 18.0 | 0.16× | 3.1 |
+| JP2 partial lossless, native tile | **17.1** | 63.7 | 0.27× | 18.9 |
+| JP2 partial lossless, full → 512 | **57.8** | 90.6 | 0.64× | 59.8 |
+| JP2 partial 20:1 lossy, native tile | **11.8** | 40.0 | 0.30× | 12.5 |
+| JP2 exact-grid lossless, native tile | **17.7** | 62.8 | 0.28× | 18.7 |
+| JP2 untiled+precincts, native tile | **31.8** | 88.2 | 0.36× | 78.3 |
+| JP2 165 MP partial, native tile | **24.2** | 85.7 | 0.28× | 29.5 |
+| JP2 165 MP partial, full → 512 | **145.3** | 189.8 | 0.77× | 157.1 |
+| HTJ2K partial lossless, native tile | **10.8** | *501* | — | 25.8 |
+| HTJ2K partial lossless, full → 512 | **24.6** | *501* | — | 28.4 |
+| HTJ2K 20:1 lossy, native tile | **7.4** | *501* | — | 8.7 |
+| HTJ2K 165 MP, native tile | **25.2** | *501* | — | 27.5 |
+| plain JPEG 28 MP, full → 512 | **139.4** | 302.8 | 0.46× | 160.1 |
+| plain JPEG 28 MP, native tile | **94.1** | 115.4 | 0.82× | 99.0 |
+
+What changed:
+
+- **JP2 165 MP native tile: 90.8 → 24.2 ms.** The former near-parity
+  row becomes a 3.5× win: per-request cost now scales with the region,
+  not the master's tile count. Native-tile latency is statistically
+  identical across master sizes (17–25 ms), which is the tile-skip
+  working as designed.
+- **JP2 165 MP full → 512: 308 → 145 ms.** The last remaining loss
+  becomes a win (0.77×): the request decodes at 1/16 instead of
+  decoding 1/8 and resampling. The residual gap to the native-tile
+  rows is reduced-resolution decode across the full tile grid inside
+  the codec — tracked as a codec-level follow-up in #41.
+- **Every multi-tile HTJ2K row roughly halves** (same tile-skip
+  mechanics); single-tile and non-JP2 rows are unchanged, as expected.
+
+Every row in this table is now a win against the incumbent's
+strongest reproducible open-source configuration.
+
 ## Conformance
 
 Official IIIF validators (pinned at `1740893f`), level 2, both API
@@ -250,10 +300,16 @@ are in the optional surface (empirical, HTTP status for the request):
 Two structural notes. First, Cantaloupe's capability set is
 configuration-dependent (`max_scale`, per-processor formats), so its
 info.json varies per deployment; iiif-server's is baked in and
-identical everywhere. Second, the HTJ2K result is precise: the
-*decoder* in the container (OpenJPEG 2.5.0) decodes our HTJ2K
-codestreams at the CLI — Cantaloupe the *server* has no route for the
-format and returns 501 for every packaging of it.
+identical everywhere. Second, the HTJ2K result is precise, and worth stating
+carefully: the *decoder* in the container (OpenJPEG 2.5.0) decodes our
+HTJ2K codestreams at the CLI — Cantaloupe the *server* has no route
+for the format's conformant packagings (`.j2c`, `.jph`) and returns
+501 for them regardless of the configured processor. One asterisk for
+the thorough reader: extension-based routing means an HT codestream
+*mislabeled* inside a `.jp2` container can reach a processor whose
+decoder handles HT — a packaging ISO/IEC 15444-15 forbids (HT belongs
+under the `jph` brand), and one iiif-server deliberately rejects as
+non-conformant rather than serving.
 
 ## Ops
 
