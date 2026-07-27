@@ -1,0 +1,29 @@
+# Canonical lychee config (issue #7). Copied per repo to the root as
+# lychee.toml, drift-audited deliberately. Runs ONLY in the weekly
+# scheduled workflow — link rot is the never-fingerprint class (the
+# input is the public internet); it must not gate pushes.
+#
+# GITHUB_TOKEN comes from the workflow env (lychee reads it natively) so
+# github.com links are checked authenticated instead of rate-limited.
+# Per-link escapes go in .lycheeignore with a why-comment per entry.
+
+# Broken intra-document anchors are link rot too, and the most common kind
+# in refactored READMEs. "full" = anchor + text fragments, the max tier.
+include_fragments = "full"
+
+# Private/loopback/link-local targets are dev-environment references, not
+# checkable public links (and a CI runner must not probe private ranges).
+exclude_private = true
+exclude_loopback = true
+exclude_link_local = true
+
+# Max-enforcement: an http:// link where https:// works is a finding.
+# Validated against all four repos' link corpus on 2026-07-27 — clean.
+require_https = true
+
+# CI log hygiene; findings print regardless.
+no_progress = true
+
+# No cache: the weekly cadence IS the cache. A cached OK defeats the
+# purpose of a rot check.
+cache = false

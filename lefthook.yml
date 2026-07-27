@@ -28,6 +28,11 @@ pre-commit:
       glob: "{Cargo.toml,Cargo.lock,deny.toml}"
       run: cargo deny check -D unmatched-skip
 
+    - name: machete
+      # Dependency drift only enters through a manifest edit.
+      glob: "**/Cargo.toml"
+      run: cargo machete --with-metadata
+
 pre-push:
   jobs:
     - name: test

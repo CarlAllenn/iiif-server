@@ -46,6 +46,7 @@ tasks:
       - lint:ec
       - lint:actions
       - lint:shell
+      - lint:machete
 
   lint:rust:
     desc: rustfmt (check) + clippy, warnings as errors
@@ -145,6 +146,23 @@ tasks:
       - |
         files=$(shfmt --find .)
         [ -z "$files" ] || shellcheck $files
+
+  lint:machete:
+    desc: cargo-machete (unused dependencies, metadata mode)
+    # Deterministic given the lock (verified lockfile-untouched); canon:
+    # renovate-config templates/cargo-machete/README.md.
+    method: checksum
+    sources: *rust-sources
+    cmds:
+      - cargo machete --with-metadata
+
+  scan:secrets:
+    desc: gitleaks over the full git history
+    # Not fingerprinted: the input is git history, which sources: cannot
+    # see. The staged-changes layer is the universal pre-commit hook.
+    # Canon: renovate-config templates/gitleaks/README.md.
+    cmds:
+      - gitleaks git --no-banner --redact --verbose .
 
   validate:
     desc: Run the official IIIF validator (v3 level 2) against a local build

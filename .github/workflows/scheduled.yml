@@ -1,0 +1,102 @@
+---
+# Canonical scheduled-scanners workflow (issue #7). Copy-template: keep
+# the shape, adapt nothing unless the repo has extra scheduled-class
+# scanners. These jobs are the never-fingerprint class — their inputs
+# (the GitHub API's advisory/repo state, the public internet) change
+# without commits — so they run on a weekly cron and never gate pushes.
+# The deterministic siblings live in ci.yml. Decision records:
+# README.md in this directory.
+name: scheduled
+
+"on":
+  schedule:
+    # Offset one hour from ci.yml's weekly full gate so the runs don't
+    # contend and a shared-cause failure is distinguishable by timing.
+    - cron: 0 7 * * 1
+  # Manual kick: triage, allowlist derivation, post-fix re-runs.
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Queue, don't cancel: every completed scanner run is a useful result (the
+# same rationale as fuzz-style workflows), and overlap is only possible via
+# a manual dispatch during the weekly run.
+concurrency:
+  group: scheduled-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  zizmor-online:
+    name: zizmor online audits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          # Minimal cold-cache set: this job installs only zizmor (see
+          # install_args below), so none of the toolchain domains apply.
+          # api.github.com also serves the online audits themselves.
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            tuf-repo-cdn.sigstore.dev:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12          # Scanner jobs install only their own tool — a scheduled scanner
+          # must not pay (or egress for) the whole toolchain.
+          install_args: aqua:zizmorcore/zizmor
+
+      # The six online audits (known-vulnerable-actions, stale-action-refs,
+      # ref-confusion, typosquat-uses, archived-uses, impostor-commit) run
+      # ONLY here: every commit/CI gate is `zizmor --offline` because
+      # advisory lookups are time-varying. This job is their home (issue #4
+      # handoff). Same pedantic persona and .github/ scope as the gates.
+      - name: zizmor (online)
+        run: zizmor --persona=pedantic .github/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  links:
+    name: lychee
+    runs-on: ubuntu-latest
+    steps:
+      # audit, not block — the only such job in any workflow. A link
+      # checker's purpose is arbitrary egress; a meaningful allowlist would
+      # be the link list itself. Quarantined here so every ci.yml job keeps
+      # egress-policy: block; nothing secret-bearing runs in this job (the
+      # default read-only token only authenticates github.com link checks).
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+          disable-sudo: true
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12          # Scanner jobs install only their own tool — a scheduled scanner
+          # must not pay (or egress for) the whole toolchain.
+          install_args: lychee
+
+      # Config: lychee.toml at the repo root (canon: templates/lychee/).
+      - name: lychee
+        run: lychee .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
