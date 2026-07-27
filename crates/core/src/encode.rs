@@ -1,12 +1,13 @@
-//! Output encoders: the complete spec table. `jpg`/`png` are the level-2
-//! core; `tif`, `gif`, `jp2` (lossless), `pdf` (hand-rolled single-image
-//! wrapper), and `webp` (lossless — the one documented asterisk: valid
-//! `image/webp`, larger files, because lossy webp would require C libwebp)
-//! complete it.
+//! Output encoders: the complete spec table.
+//!
+//! `jpg`/`png` are the level-2 core; `tif`, `gif`, `jp2` (lossless), `pdf`
+//! (hand-rolled single-image wrapper), and `webp` (lossless — the one
+//! documented asterisk: valid `image/webp`, larger files, because lossy webp
+//! would require C libwebp) complete it.
 
-use crate::grammar::Format;
-use crate::image::Raster;
 use std::fmt;
+
+use crate::{grammar::Format, image::Raster};
 
 /// Encoder failure. Client-caused cases (dimensions beyond a format's
 /// limits) are 400s; the rest are internal.
@@ -15,8 +16,11 @@ pub enum EncodeError {
     /// The output dimensions exceed what the format can represent (JPEG
     /// caps at 65535 per side).
     DimensionsBeyondFormat {
+        /// The format whose ceiling was exceeded.
         format: Format,
+        /// Requested output width.
         width: u32,
+        /// Requested output height.
         height: u32,
     },
     /// Internal encoder failure.
@@ -32,7 +36,7 @@ impl fmt::Display for EncodeError {
                 height,
             } => {
                 write!(f, "{width}×{height} exceeds what {format} can represent")
-            }
+            },
             Self::Internal(msg) => write!(f, "encoder failure: {msg}"),
         }
     }
@@ -90,7 +94,7 @@ fn encode_tiff(raster: &Raster) -> Result<Vec<u8>, EncodeError> {
                 return Err(EncodeError::Internal(
                     "alpha survived flattening".to_owned(),
                 ));
-            }
+            },
         }
     }
     Ok(cursor.into_inner())
@@ -118,12 +122,12 @@ fn encode_gif(raster: &Raster) -> Result<Vec<u8>, EncodeError> {
                 .flat_map(|&px| [px, px, px])
                 .collect::<Vec<u8>>();
             &rgb
-        }
+        },
         _ => {
             return Err(EncodeError::Internal(
                 "alpha survived flattening".to_owned(),
             ));
-        }
+        },
     };
     let frame = gif::Frame::from_rgb(width, height, pixels);
     let mut out = Vec::new();
@@ -164,7 +168,7 @@ fn encode_jp2(raster: &Raster) -> Result<Vec<u8>, EncodeError> {
             return Err(EncodeError::Internal(
                 "alpha survived flattening".to_owned(),
             ));
-        }
+        },
     };
     let samples = j2k::J2kLosslessSamples {
         data,
@@ -185,6 +189,10 @@ fn encode_jp2(raster: &Raster) -> Result<Vec<u8>, EncodeError> {
 /// Hand-rolled single-image PDF (design decision: ~150 lines beat a
 /// dependency). The page embeds the pipeline's JPEG output via `DCTDecode`
 /// at 72 dpi, sized 1 pt per pixel.
+#[allow(
+    clippy::too_many_lines,
+    reason = "a minimal PDF writer is one linear object list; splitting scatters the xref math"
+)]
 fn encode_pdf(raster: &Raster) -> Result<Vec<u8>, EncodeError> {
     let raster = raster.clone().flatten_over_white();
     let jpeg = encode_jpeg(&raster)?;
@@ -210,28 +218,44 @@ Q
         (
             3,
             format!(
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}]                 /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"
+                concat!(
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] ",
+                    "/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"
+                ),
+                width = width,
+                height = height
             )
             .into_bytes(),
         ),
         (4, {
             let mut object = format!(
-                "<< /Type /XObject /Subtype /Image /Width {width} /Height {height}                 /ColorSpace {colorspace} /BitsPerComponent 8 /Filter /DCTDecode                 /Length {} >>
-stream
-",
-                jpeg.len()
+                concat!(
+                    "<< /Type /XObject /Subtype /Image /Width {width} /Height {height} ",
+                    "/ColorSpace {colorspace} /BitsPerComponent 8 /Filter /DCTDecode ",
+                    "/Length {len} >>\nstream\n"
+                ),
+                width = width,
+                height = height,
+                colorspace = colorspace,
+                len = jpeg.len()
             )
             .into_bytes();
             object.extend_from_slice(&jpeg);
-            object.extend_from_slice(b"
-endstream");
+            object.extend_from_slice(
+                b"
+endstream",
+            );
             object
         }),
         (
             5,
-            format!("<< /Length {} >>
+            format!(
+                "<< /Length {} >>
 stream
-{content}endstream", content.len()).into_bytes(),
+{content}endstream",
+                content.len()
+            )
+            .into_bytes(),
         ),
     ];
     for (number, body) in &objects {
@@ -287,7 +311,7 @@ fn encode_jpeg(raster: &Raster) -> Result<Vec<u8>, EncodeError> {
         Raster::GrayA8 { .. } | Raster::Rgba8 { .. } => {
             flattened = raster.clone().flatten_over_white();
             &flattened
-        }
+        },
         opaque => opaque,
     };
     let width = u16::try_from(raster.width());
@@ -309,7 +333,7 @@ fn encode_jpeg(raster: &Raster) -> Result<Vec<u8>, EncodeError> {
             return Err(EncodeError::Internal(
                 "alpha survived flattening".to_owned(),
             ));
-        }
+        },
     };
     encoder
         .encode(raster.data(), width, height, color)

@@ -8,22 +8,28 @@
 //! (defaults to available parallelism), `ALLOC_BENCH_ITERS` (per
 //! thread, defaults to 40).
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "diagnostic spike harness: prints findings, panics are failures"
+)]
+
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use iiif_core::codec::{Master, TiffPyramid};
-use iiif_core::eval::evaluate;
-use iiif_core::grammar::ImageRequest;
-use iiif_core::info::Limits;
-use iiif_core::pipeline;
-use std::fs::File;
-use std::time::Instant;
+use std::{fs::File, time::Instant};
+
+use iiif_core::{
+    codec::TiffPyramid, eval::evaluate, grammar::ImageRequest, info::Limits, pipeline,
+};
 
 const LIMITS: Limits = Limits {
-    max_width: 8192,
-    max_height: 8192,
-    max_area: 67_108_864,
+    width: 8192,
+    height: 8192,
+    area: 67_108_864,
 };
 
 /// Deterministic per-iteration request mix: different regions and output
@@ -78,8 +84,7 @@ fn main() {
                     let (w, h) = TiffPyramid::dimensions(&tiff);
                     let request = request_for(thread * iters + i);
                     let plan = evaluate(&request, w, h, LIMITS).expect("evaluate");
-                    let encoded =
-                        pipeline::execute(&mut tiff as &mut dyn Master, &plan).expect("pipeline");
+                    let encoded = pipeline::execute(&mut tiff, &plan).expect("pipeline");
                     assert!(!encoded.is_empty());
                 }
             });

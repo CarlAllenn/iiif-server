@@ -21,9 +21,27 @@ pub enum Region {
     Square,
     /// `x,y,w,h` — pixel coordinates. `w`, `h` are non-zero (parse-time
     /// rule: zero width or height is always a 400).
-    Pixels { x: u32, y: u32, w: u32, h: u32 },
+    Pixels {
+        /// Left edge, pixels from the left of the full image.
+        x: u32,
+        /// Top edge, pixels from the top of the full image.
+        y: u32,
+        /// Region width in pixels (non-zero).
+        w: u32,
+        /// Region height in pixels (non-zero).
+        h: u32,
+    },
     /// `pct:x,y,w,h` — percentages of full-image dimensions.
-    Percent { x: f64, y: f64, w: f64, h: f64 },
+    Percent {
+        /// Left edge as a percentage of full-image width.
+        x: f64,
+        /// Top edge as a percentage of full-image height.
+        y: f64,
+        /// Region width as a percentage of full-image width.
+        w: f64,
+        /// Region height as a percentage of full-image height.
+        h: f64,
+    },
 }
 
 /// How the scaled dimensions are derived, per §4.2 (without the `^` flag,
@@ -49,6 +67,7 @@ pub enum SizeKind {
 pub struct Size {
     /// `^` prefix: upscaling beyond the extracted region is permitted.
     pub upscale: bool,
+    /// How the scaled dimensions are derived.
     pub kind: SizeKind,
 }
 
@@ -58,15 +77,20 @@ pub struct Size {
 pub struct Rotation {
     /// `!` prefix: mirror on the vertical axis before rotating.
     pub mirror: bool,
+    /// Clockwise rotation in degrees, `0..=360`.
     pub degrees: f64,
 }
 
 /// The quality parameter, per §4.4.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Quality {
+    /// `default` — the image as stored, no colorspace change.
     Default,
+    /// `color` — full colour.
     Color,
+    /// `gray` — greyscale.
     Gray,
+    /// `bitonal` — one bit per pixel.
     Bitonal,
 }
 
@@ -75,32 +99,50 @@ pub enum Quality {
 /// elsewhere (unsupported-but-well-formed → 400 per spec).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Format {
+    /// `jpg` — JPEG.
     Jpg,
+    /// `tif` — TIFF.
     Tif,
+    /// `png` — PNG.
     Png,
+    /// `gif` — GIF.
     Gif,
+    /// `jp2` — JPEG 2000.
     Jp2,
+    /// `pdf` — single-page PDF wrapping the raster.
     Pdf,
+    /// `webp` — WebP.
     Webp,
 }
 
-/// A complete parsed image request: `{region}/{size}/{rotation}/{quality}.{format}`.
+/// A complete parsed image request:
+/// `{region}/{size}/{rotation}/{quality}.{format}`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ImageRequest {
+    /// The region parameter (first path segment).
     pub region: Region,
+    /// The size parameter (second path segment).
     pub size: Size,
+    /// The rotation parameter (third path segment).
     pub rotation: Rotation,
+    /// The quality parameter (final segment, before the dot).
     pub quality: Quality,
+    /// The format parameter (final segment, after the dot).
     pub format: Format,
 }
 
 /// Which request component failed to parse. Every variant maps to a 400.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Component {
+    /// The region segment failed to parse.
     Region,
+    /// The size segment failed to parse.
     Size,
+    /// The rotation segment failed to parse.
     Rotation,
+    /// The quality segment failed to parse.
     Quality,
+    /// The format suffix failed to parse.
     Format,
     /// The path didn't have the `region/size/rotation/quality.format` shape.
     Structure,
@@ -109,7 +151,9 @@ pub enum Component {
 /// A parse failure: the offending component and the input that failed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
+    /// Which component rejected the input.
     pub component: Component,
+    /// The exact segment text that failed to parse.
     pub input: String,
 }
 
@@ -158,7 +202,7 @@ fn parse_f64(s: &str) -> Option<f64> {
                 && !frac.is_empty()
                 && int.bytes().all(|b| b.is_ascii_digit())
                 && frac.bytes().all(|b| b.is_ascii_digit())
-        }
+        },
         None => !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()),
     };
     if !valid {
@@ -191,7 +235,7 @@ impl Region {
         match input {
             "full" => return Ok(Self::Full),
             "square" => return Ok(Self::Square),
-            _ => {}
+            _ => {},
         }
         if let Some(rest) = input.strip_prefix("pct:") {
             let mut fields = rest.split(',');
@@ -246,10 +290,7 @@ impl Size {
     /// upscale flag.
     pub fn parse(s: &str) -> Result<Self, ParseError> {
         let err = || ParseError::new(Component::Size, s);
-        let (upscale, rest) = match s.strip_prefix('^') {
-            Some(rest) => (true, rest),
-            None => (false, s),
-        };
+        let (upscale, rest) = s.strip_prefix('^').map_or((false, s), |rest| (true, rest));
         let kind = if rest == "max" {
             SizeKind::Max
         } else if let Some(pct) = rest.strip_prefix("pct:") {
@@ -276,21 +317,21 @@ impl Size {
                         return Err(err());
                     }
                     SizeKind::Width(w)
-                }
+                },
                 (true, false) => {
                     let h = parse_u32(h).ok_or_else(err)?;
                     if h == 0 {
                         return Err(err());
                     }
                     SizeKind::Height(h)
-                }
+                },
                 (false, false) => {
                     let (w, h) = (parse_u32(w).ok_or_else(err)?, parse_u32(h).ok_or_else(err)?);
                     if w == 0 || h == 0 {
                         return Err(err());
                     }
                     SizeKind::WidthHeight(w, h)
-                }
+                },
             }
         };
         Ok(Self { upscale, kind })
@@ -320,10 +361,7 @@ impl Rotation {
     /// spec-legal rotation (optional `!`, then degrees in `0..=360`).
     pub fn parse(s: &str) -> Result<Self, ParseError> {
         let err = || ParseError::new(Component::Rotation, s);
-        let (mirror, rest) = match s.strip_prefix('!') {
-            Some(rest) => (true, rest),
-            None => (false, s),
-        };
+        let (mirror, rest) = s.strip_prefix('!').map_or((false, s), |rest| (true, rest));
         let degrees = parse_f64(rest).ok_or_else(err)?;
         // "any floating point number from 0 to 360" — inclusive.
         if degrees > 360.0 {
@@ -365,8 +403,9 @@ impl Quality {
         }
     }
 
+    /// The spec's lowercase parameter spelling.
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Default => "default",
             Self::Color => "color",
@@ -400,8 +439,9 @@ impl Format {
         }
     }
 
+    /// The spec's lowercase extension spelling.
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Jpg => "jpg",
             Self::Tif => "tif",
@@ -413,8 +453,9 @@ impl Format {
         }
     }
 
+    /// The Content-Type this format is served with.
     #[must_use]
-    pub fn media_type(&self) -> &'static str {
+    pub const fn media_type(self) -> &'static str {
         match self {
             Self::Jpg => "image/jpeg",
             Self::Tif => "image/tiff",
@@ -487,6 +528,12 @@ impl fmt::Display for ImageRequest {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "test code: a panic here is the failure signal, not a crash path"
+    )]
+
     use super::*;
 
     #[track_caller]

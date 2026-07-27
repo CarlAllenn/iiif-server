@@ -13,6 +13,9 @@ targets = ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-
 
 [advisories]
 yanked = "deny"
+# Unmaintained advisories fail for the whole graph, not just direct deps —
+# a transitive unmaintained crate is the same supply-chain exposure.
+unmaintained = "all"
 unused-ignored-advisory = "deny"
 
 [licenses]

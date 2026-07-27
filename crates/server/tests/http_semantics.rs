@@ -1,12 +1,18 @@
 //! HTTP-layer conformance semantics, tested against the real handler with
 //! the committed fixture — no sockets, exact header assertions.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "test/bench code: a panic here is the failure signal, not a crash path"
+)]
+
+use std::{path::Path, sync::Arc};
+
 use hyper::{Request, StatusCode};
 use iiif_core::info::Limits;
 use iiif_server::app::{App, SourceRoot};
 use iiif_sources::LocalRoot;
-use std::path::Path;
-use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 fn fixture_root() -> SourceRoot {
@@ -18,9 +24,9 @@ fn app() -> Arc<App> {
     Arc::new(App {
         root: fixture_root(),
         limits: Limits {
-            max_width: 8192,
-            max_height: 8192,
-            max_area: 67_108_864,
+            width: 8192,
+            height: 8192,
+            area: 67_108_864,
         },
         public_base: Some("https://images.example.org".to_owned()),
         admission: Arc::new(Semaphore::new(8)),
@@ -104,9 +110,10 @@ async fn image_carries_canonical_link() {
     assert_eq!(header(&response, "content-type"), "image/jpeg");
     let link = header(&response, "link");
     assert!(
-        link.contains(
-            "<https://images.example.org/iiif/3/rgb_pyramid.tif/0,0,512,512/256,256/0/default.jpg>;rel=\"canonical\""
-        ),
+        link.contains(concat!(
+            "<https://images.example.org/iiif/3/rgb_pyramid.tif",
+            "/0,0,512,512/256,256/0/default.jpg>;rel=\"canonical\""
+        )),
         "unexpected link: {link}"
     );
     assert!(link.contains("rel=\"profile\""));
@@ -170,9 +177,9 @@ async fn saturated_queue_returns_503_with_retry_after() {
     let app = Arc::new(App {
         root: fixture_root(),
         limits: Limits {
-            max_width: 8192,
-            max_height: 8192,
-            max_area: 67_108_864,
+            width: 8192,
+            height: 8192,
+            area: 67_108_864,
         },
         public_base: None,
         // Zero admission permits: every image request is over capacity.
@@ -290,8 +297,8 @@ async fn metrics_render_the_frozen_set() {
     use http_body_util::BodyExt;
     let app = app();
     // Generate one of each family.
-    let _ = get(&app, "/iiif/3/rgb_pyramid.tif/info.json").await;
-    let _ = get(&app, "/iiif/3/rgb_pyramid.tif/full/64,/0/default.jpg").await;
+    drop(get(&app, "/iiif/3/rgb_pyramid.tif/info.json").await);
+    drop(get(&app, "/iiif/3/rgb_pyramid.tif/full/64,/0/default.jpg").await);
     let response = get(&app, "/metrics").await;
     assert_eq!(response.status(), StatusCode::OK);
     let body = response.into_body().collect().await.unwrap().to_bytes();

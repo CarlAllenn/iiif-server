@@ -1,14 +1,20 @@
-//! Plain JPEG and PNG masters: decoded whole (they have no pyramid or
-//! tiles to exploit), served by cropping the resident raster. `check`
-//! advises converting large ones to pyramids; small images are fine here.
+//! Plain JPEG and PNG masters: decoded whole (they have no pyramid or tiles to
+//! exploit), served by cropping the resident raster.
+//!
+//! `check` advises converting large ones to pyramids; small images are fine
+//! here.
 
-use super::{CodecError, Master, guard_resident_pixels};
-use crate::eval::CropRect;
-use crate::image::{CopyRect, Raster};
-use crate::info::ImageDescription;
 use std::io::Cursor;
 
+use super::{CodecError, Master, guard_resident_pixels};
+use crate::{
+    eval::CropRect,
+    image::{CopyRect, Raster},
+    info::ImageDescription,
+};
+
 /// A fully decoded single-resolution master.
+#[derive(Debug)]
 pub struct SimpleMaster {
     raster: Raster,
 }
@@ -22,8 +28,7 @@ impl SimpleMaster {
     /// [`CodecError::Corrupt`] when the stream does not decode;
     /// [`CodecError::Unsupported`] for sample layouts outside the matrix.
     pub fn from_jpeg(bytes: &[u8]) -> Result<Self, CodecError> {
-        use zune_jpeg::zune_core::colorspace::ColorSpace;
-        use zune_jpeg::zune_core::options::DecoderOptions;
+        use zune_jpeg::zune_core::{colorspace::ColorSpace, options::DecoderOptions};
         let options = DecoderOptions::default().jpeg_set_out_colorspace(ColorSpace::RGB);
         let mut decoder = zune_jpeg::JpegDecoder::new_with_options(
             zune_jpeg::zune_core::bytestream::ZCursor::new(bytes),
@@ -117,19 +122,19 @@ impl SimpleMaster {
                     height,
                     data,
                 }
-            }
+            },
             (color, depth) => {
                 return Err(CodecError::Unsupported(format!(
                     "PNG {color:?}/{depth:?} is not yet in the supported matrix"
                 )));
-            }
+            },
         };
         Ok(Self { raster })
     }
 
     /// Wrap an already-decoded raster (used by tests).
     #[must_use]
-    pub fn from_raster(raster: Raster) -> Self {
+    pub const fn from_raster(raster: Raster) -> Self {
         Self { raster }
     }
 }

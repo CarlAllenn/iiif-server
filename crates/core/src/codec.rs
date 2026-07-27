@@ -12,19 +12,28 @@
 pub mod jp2;
 pub mod simple;
 
-use crate::eval::CropRect;
-use crate::image::{Raster, RasterError};
-use crate::info::{ImageDescription, SizeEntry, TileSet};
-use num_traits::cast::ToPrimitive;
-use std::fmt;
-use std::io::{Read, Seek, SeekFrom};
-use tiff::ColorType;
-use tiff::decoder::{Decoder, DecodingResult};
+use std::{
+    fmt,
+    io::{Read, Seek, SeekFrom},
+};
 
-/// Decompression-bomb ceiling for masters that must be decoded whole
-/// (plain JPEG/PNG): 268 million pixels, i.e. under a gigabyte of RGB.
-/// Region-decoded masters (pyramidal TIFF, tiled JP2) are not bounded by
-/// this — they never materialize the full image.
+use num_traits::cast::ToPrimitive;
+use tiff::{
+    ColorType,
+    decoder::{Decoder, DecodingResult},
+};
+
+use crate::{
+    eval::CropRect,
+    image::{Raster, RasterError},
+    info::{ImageDescription, SizeEntry, TileSet},
+};
+
+/// Decompression-bomb ceiling for masters that must be decoded whole (plain
+/// JPEG/PNG): 268 million pixels, i.e.
+///
+/// under a gigabyte of RGB. Region-decoded masters (pyramidal TIFF, tiled JP2)
+/// are not bounded by this — they never materialize the full image.
 ///
 /// Found by fuzzing: a 12-byte PNG header claiming 512×16777335 drove a
 /// 25 GB allocation before any pixel arrived.
@@ -137,7 +146,7 @@ fn read_up_to<R: Read>(reader: &mut R, buf: &mut [u8]) -> std::io::Result<usize>
         match reader.read(&mut buf[filled..]) {
             Ok(0) => break,
             Ok(n) => filled += n,
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {},
             Err(e) => return Err(e),
         }
     }
@@ -149,9 +158,13 @@ fn read_up_to<R: Read>(reader: &mut R, buf: &mut [u8]) -> std::io::Result<usize>
 pub struct LevelInfo {
     /// IFD index inside the TIFF.
     pub ifd: usize,
+    /// Level width in this level's own pixels.
     pub width: u32,
+    /// Level height in this level's own pixels.
     pub height: u32,
+    /// Tile width at this level.
     pub tile_width: u32,
+    /// Tile height at this level.
     pub tile_height: u32,
     /// Full-resolution pixels per pixel at this level (1, 2, 4, …).
     pub scale_factor: u32,
@@ -202,6 +215,15 @@ pub struct TiffPyramid<R: Read + Seek> {
     levels: Vec<LevelInfo>,
     /// IFD index the decoder currently points at, to avoid useless seeks.
     current_ifd: usize,
+}
+
+impl<R: Read + Seek> fmt::Debug for TiffPyramid<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TiffPyramid")
+            .field("levels", &self.levels)
+            .field("current_ifd", &self.current_ifd)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<R: Read + Seek> TiffPyramid<R> {
@@ -430,7 +452,7 @@ fn raster_from_decoded(
                 height,
                 data,
             })
-        }
+        },
         ColorType::RGB(8) => {
             let mut data = data;
             data.truncate(pixels * 3);
@@ -442,7 +464,7 @@ fn raster_from_decoded(
                 height,
                 data,
             })
-        }
+        },
         ColorType::YCbCr(8) => {
             // For JPEG-compressed tiles the tiff crate keeps the JPEG
             // decoder's *input* colorspace, so the buffer holds
@@ -457,9 +479,9 @@ fn raster_from_decoded(
             }
             for px in data.chunks_exact_mut(3) {
                 let [y, cb, cr] = [f64::from(px[0]), f64::from(px[1]), f64::from(px[2])];
-                let r = y + 1.402 * (cr - 128.0);
-                let g = y - 0.344_136 * (cb - 128.0) - 0.714_136 * (cr - 128.0);
-                let b = y + 1.772 * (cb - 128.0);
+                let r = 1.402f64.mul_add(cr - 128.0, y);
+                let g = 0.714_136f64.mul_add(-(cr - 128.0), 0.344_136f64.mul_add(-(cb - 128.0), y));
+                let b = 1.772f64.mul_add(cb - 128.0, y);
                 px[0] = r.round().clamp(0.0, 255.0).to_u8().unwrap_or(0);
                 px[1] = g.round().clamp(0.0, 255.0).to_u8().unwrap_or(0);
                 px[2] = b.round().clamp(0.0, 255.0).to_u8().unwrap_or(0);
@@ -469,7 +491,7 @@ fn raster_from_decoded(
                 height,
                 data,
             })
-        }
+        },
         other => Err(CodecError::Unsupported(format!(
             "color type {other:?} not yet in the supported matrix \
             (level {}×{})",

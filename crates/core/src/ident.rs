@@ -7,9 +7,9 @@
 //! 1. exactly **one** percent-decode pass — the output is never re-decoded;
 //! 2. strict encoding: `%` must introduce exactly two hex digits;
 //! 3. the decoded bytes must be valid UTF-8 with no control characters;
-//! 4. canonical-path traversal rejection: decoded `/` separates
-//!    subdirectory segments, and no segment may be empty, `.`, or `..`;
-//!    absolute paths, backslashes, and NUL never survive.
+//! 4. canonical-path traversal rejection: decoded `/` separates subdirectory
+//!    segments, and no segment may be empty, `.`, or `..`; absolute paths,
+//!    backslashes, and NUL never survive.
 //!
 //! The result is a relative path safe to join under a source root.
 
@@ -107,7 +107,7 @@ impl fmt::Display for Identifier {
     }
 }
 
-fn hex_val(b: u8) -> Option<u8> {
+const fn hex_val(b: u8) -> Option<u8> {
     match b {
         b'0'..=b'9' => Some(b - b'0'),
         b'a'..=b'f' => Some(b - b'a' + 10),
@@ -121,11 +121,17 @@ fn hex_val(b: u8) -> Option<u8> {
 /// here would leak which malformed shapes we distinguish).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdentifierError {
+    /// Empty after percent-decoding.
     Empty,
+    /// Malformed percent-escape.
     BadEscape,
+    /// Percent-decoded bytes are not valid UTF-8.
     NotUtf8,
+    /// Contains an ASCII control character.
     ControlCharacter,
+    /// Contains a backslash (never a path separator here).
     Backslash,
+    /// Contains a `.`/`..` path segment.
     Traversal,
 }
 

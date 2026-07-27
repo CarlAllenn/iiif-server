@@ -2,14 +2,17 @@
 //! `OpenJPEG`-based incumbent has, validated bit-exact against `OpenJPEG` by
 //! SPIKE 2.
 
-use super::{CodecError, Master};
-use crate::eval::CropRect;
-use crate::image::Raster;
-use crate::info::{ImageDescription, SizeEntry, TileSet};
 use j2k::{CpuDecodeParallelism, Downscale, J2kDecoder, J2kScratchPool, PixelFormat, Rect};
 
+use super::{CodecError, Master};
+use crate::{
+    eval::CropRect,
+    image::Raster,
+    info::{ImageDescription, SizeEntry, TileSet},
+};
+
 /// Wrap raw interleaved samples in the right raster variant.
-fn raster_of(fmt: PixelFormat, width: u32, height: u32, data: Vec<u8>) -> Raster {
+const fn raster_of(fmt: PixelFormat, width: u32, height: u32, data: Vec<u8>) -> Raster {
     match fmt {
         PixelFormat::Gray8 => Raster::Gray8 {
             width,
@@ -29,11 +32,14 @@ fn raster_of(fmt: PixelFormat, width: u32, height: u32, data: Vec<u8>) -> Raster
 /// advertised grid is a viewer hint, not a constraint.
 const DEFAULT_TILE: u32 = 1024;
 
-/// An opened JP2/HTJ2K master. Owns the compressed bytes; decoders borrow
-/// them per request (parse state is cheap relative to pixel work, and a
-/// fresh decoder per decode keeps the type `Send` for the worker pool).
+/// An opened JP2/HTJ2K master.
+///
+/// Owns the compressed bytes; decoders borrow them per request (parse state is
+/// cheap relative to pixel work, and a fresh decoder per decode keeps the type
+/// `Send` for the worker pool).
 pub struct Jp2Master {
     bytes: Vec<u8>,
+    // (Debug impl below skips `bytes` — megabytes of codestream.)
     width: u32,
     height: u32,
     components: u16,
@@ -41,6 +47,18 @@ pub struct Jp2Master {
     tile: (u32, u32),
     /// Live pool-pressure hint; see `Master::set_internal_parallelism`.
     internal_parallelism: bool,
+}
+
+impl core::fmt::Debug for Jp2Master {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Jp2Master")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("components", &self.components)
+            .field("resolution_levels", &self.resolution_levels)
+            .field("tile", &self.tile)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Jp2Master {
@@ -80,7 +98,7 @@ impl Jp2Master {
         })
     }
 
-    fn pixel_format(&self) -> PixelFormat {
+    const fn pixel_format(&self) -> PixelFormat {
         if self.components == 1 {
             PixelFormat::Gray8
         } else {

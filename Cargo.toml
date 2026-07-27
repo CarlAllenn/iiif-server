@@ -22,13 +22,53 @@ bytes = "1"
 serde_json = "1"
 tokio = "1"
 
+# Lint canon: renovate-config templates/rust-lints/Cargo-lints.toml —
+# drift-audited, identical across the Rust repos; decisions recorded there.
+# Manifest levels are warn; the clippy hook and CI escalate with -D warnings.
 [workspace.lints.rust]
 unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+elided_lifetimes_in_paths = "warn"
+let_underscore_drop = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+non_ascii_idents = "warn"
+unit_bindings = "warn"
+meta_variable_misuse = "warn"
+unused_lifetimes = "warn"
+redundant_lifetimes = "warn"
+unnameable_types = "warn"
+variant_size_differences = "warn"
+single_use_lifetimes = "warn"
+explicit_outlives_requirements = "warn"
+rust-2024-compatibility = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
-# Max enforcement, no exemptions: the whole pedantic tier is on and the code
-# complies — there are no `allow` attributes in this workspace.
+all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+# Conflicts with rustc's unreachable_pub (each lint's fix triggers the
+# other on pub(crate) items in private modules); the compiler-native lint
+# wins. Recorded in the template README.
+redundant_pub_crate = "allow"
+# Duplicate-version policy lives in cargo-deny (multiple-versions = deny
+# with reasoned, pinned skips); clippy's copy of the check has no skip
+# mechanism, so it would just re-flag the recorded exceptions.
+multiple_crate_versions = "allow"
+# restriction tier: individual opt-ins, each a recorded decision (see the
+# template README).
+unwrap_used = "warn"
+expect_used = "warn"
+undocumented_unsafe_blocks = "warn"
+allow_attributes_without_reason = "warn"
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
 
 # TEMPORARY (issue #21): j2k pinned to our fork carrying the fix for
 # frames-sg/j2k#62 (region decode returned shifted content whenever a

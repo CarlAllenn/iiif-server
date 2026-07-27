@@ -8,6 +8,14 @@ set: [errexit, nounset, pipefail]
 # Parallel deps interleave output; prefix each line with its task name.
 output: prefixed
 
+vars:
+  # Pinned nightly rustfmt: the canonical config (rustfmt.toml, from
+  # renovate-config templates/rustfmt/) uses nightly-only options — the
+  # second sanctioned nightly exception after cargo-fuzz. No Renovate
+  # datasource exists for dated nightlies; bump manually alongside stable
+  # toolchain bumps. Hooks, tasks and CI all read this one value.
+  RUSTFMT_TOOLCHAIN: nightly-2026-07-20
+
 tasks:
   ci:
     desc: Everything CI runs — the full gate, identical locally and on GitHub
@@ -30,9 +38,15 @@ tasks:
   fmt:
     desc: Apply all formatters
     cmds:
-      - cargo fmt --all
+      - cargo +{{.RUSTFMT_TOOLCHAIN}} fmt --all
+      - cargo +{{.RUSTFMT_TOOLCHAIN}} fmt --manifest-path fuzz/Cargo.toml
       - taplo fmt
       - shfmt -w .
+
+  fmt:toolchain:
+    desc: Install the pinned nightly rustfmt (idempotent; CI + fresh clones)
+    cmds:
+      - rustup toolchain install {{.RUSTFMT_TOOLCHAIN}} --profile minimal --component rustfmt
 
   lint:
     desc: Run every linter over the whole repository
@@ -46,6 +60,7 @@ tasks:
       - lint:ec
       - lint:actions
       - lint:shell
+      - lint:docker
       - lint:machete
 
   lint:rust:
@@ -53,8 +68,15 @@ tasks:
     method: checksum
     sources: *rust-sources
     cmds:
-      - cargo fmt --all --check
+      - task: lint:fmt-check
       - cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+  lint:fmt-check:
+    desc: rustfmt check, both workspaces, pinned nightly
+    cmds:
+      - cargo +{{.RUSTFMT_TOOLCHAIN}} fmt --all --check
+      # fuzz is outside the workspace; keep fmt honest there.
+      - cargo +{{.RUSTFMT_TOOLCHAIN}} fmt --check --manifest-path fuzz/Cargo.toml
 
   lint:deny:
     desc: cargo-deny (advisories, licenses, bans, sources)
@@ -131,6 +153,15 @@ tasks:
     cmds:
       - actionlint
       - zizmor --persona=pedantic --offline .github/
+
+  lint:docker:
+    desc: hadolint over Dockerfiles (bench harness only — nothing ships in one)
+    method: checksum
+    sources:
+      - "**/Dockerfile"
+      - .hadolint.yaml
+    cmds:
+      - hadolint --config .hadolint.yaml tools/bench/cantaloupe/Dockerfile
 
   lint:shell:
     desc: shellcheck + shfmt (check mode) over shell scripts

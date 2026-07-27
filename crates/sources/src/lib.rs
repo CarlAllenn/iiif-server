@@ -3,16 +3,22 @@
 //! M0 ships the local-filesystem backend; `object_store` backends arrive
 //! at M4 through the same seam.
 
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
 use bytes::Bytes;
-use iiif_core::ident::Identifier;
-use iiif_core::source::{BoxFuture, ByteRangeSource, SourceError};
-use std::fs::File;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use iiif_core::{
+    ident::Identifier,
+    source::{BoxFuture, ByteRangeSource, SourceError},
+};
 
 /// A local file opened for ranged reads. Reads happen on the blocking
 /// thread pool; the file handle is shared and never mutated (seeks use
 /// per-call `read_at`-style offsets via a cloned handle).
+#[derive(Debug)]
 pub struct LocalFile {
     file: Arc<File>,
     len: u64,
@@ -45,7 +51,7 @@ impl LocalFile {
     /// The source-version pair (mtime seconds, byte length) that the `ETag`
     /// definition hashes: cheap, correct, no state.
     #[must_use]
-    pub fn source_version(&self) -> (u64, u64) {
+    pub const fn source_version(&self) -> (u64, u64) {
         (self.modified_secs, self.len)
     }
 }
@@ -126,6 +132,7 @@ fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()
 /// [`Identifier`] already guarantees no traversal segments; the canonical
 /// containment check here is defense in depth (symlinks inside the tree
 /// that point outside it are refused).
+#[derive(Debug)]
 pub struct LocalRoot {
     root: PathBuf,
 }
@@ -155,22 +162,34 @@ impl LocalRoot {
     }
 }
 
-/// Install the process-wide TLS crypto provider (ring), required before
-/// any HTTPS object-store client is built. Idempotent; the explicit call
-/// keeps the provider choice visible (see the Cargo.toml note and
-/// docs/spikes/objstore-minio.md).
+/// Install the process-wide TLS crypto provider (ring), required before any
+/// HTTPS object-store client is built.
+///
+/// Idempotent; the explicit call keeps the provider choice visible (see the
+/// Cargo.toml note and docs/spikes/objstore-minio.md).
 pub fn init_tls() {
     // A second call returns Err(already installed) — fine.
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    // A second install (another thread won the race) is fine — same provider.
+    drop(rustls::crypto::ring::default_provider().install_default());
 }
 
-/// An S3-compatible object-store root: `s3://bucket/prefix` plus an
-/// optional custom endpoint (Hetzner, `MinIO`, …). Masters are fetched
-/// whole — the design spec's acknowledged model for JP2 (`&[u8]` input);
-/// the bounded source-chunk/metadata cache is the recorded refinement.
+/// An S3-compatible object-store root: `s3://bucket/prefix` plus an optional
+/// custom endpoint (Hetzner, `MinIO`, …).
+///
+/// Masters are fetched whole — the design spec's acknowledged model for JP2
+/// (`&[u8]` input); the bounded source-chunk/metadata cache is the recorded
+/// refinement.
 pub struct ObjectRoot {
-    store: std::sync::Arc<dyn object_store::ObjectStore>,
+    store: Arc<dyn object_store::ObjectStore>,
     prefix: String,
+}
+
+impl std::fmt::Debug for ObjectRoot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ObjectRoot")
+            .field("prefix", &self.prefix)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ObjectRoot {
@@ -201,7 +220,7 @@ impl ObjectRoot {
         }
         let store = builder.build().map_err(|e| format!("object store: {e}"))?;
         Ok(Self {
-            store: std::sync::Arc::new(store),
+            store: Arc::new(store),
             prefix,
         })
     }

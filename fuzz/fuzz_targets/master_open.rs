@@ -14,16 +14,16 @@ fuzz_target!(|data: &[u8]| {
     if w == 0 || h == 0 || u64::from(w) * u64::from(h) > 16_000_000 {
         return; // decompression-bomb guard mirrors the server's limits
     }
-    let _ = master.describe();
+    drop(master.describe());
     let limits = iiif_core::info::Limits {
-        max_width: 512,
-        max_height: 512,
-        max_area: 262_144,
+        width: 512,
+        height: 512,
+        area: 262_144,
     };
     let Ok(request) = iiif_core::grammar::ImageRequest::parse("full/!64,64/90/gray.png") else {
         return;
     };
     if let Ok(plan) = iiif_core::eval::evaluate(&request, w, h, limits) {
-        let _ = iiif_core::pipeline::execute(master.as_mut(), &plan);
+        drop(iiif_core::pipeline::execute(master.as_mut(), &plan));
     }
 });
