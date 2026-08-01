@@ -18,6 +18,13 @@ PORT=6464
 # By default both API versions run (3.0 then 2.0); --version picks one.
 api_version=""
 level=2
+# --server HOST:PORT validates something already running instead of building
+# and starting one here. That is how the release pipeline points the official
+# validators at the *published container image* rather than at an equivalent
+# local build: same source, but a musl static binary through cargo-auditable
+# inside a scratch image is not the same artifact as a host cargo build, and
+# the conformance claim should cover the bytes people actually pull.
+external_server=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --version)
@@ -26,6 +33,10 @@ while [ $# -gt 0 ]; do
       ;;
     --level)
       level="$2"
+      shift 2
+      ;;
+    --server)
+      external_server="$2"
       shift 2
       ;;
     *)
@@ -60,13 +71,18 @@ if [ ! -f "${gen}/validation.tif" ]; then
     --pyramid --compression deflate
 fi
 
-# 3. Build and start the server.
-cargo build --release -p iiif-server > /dev/null
-./target/release/iiif-server serve "${gen}" --bind "127.0.0.1:${PORT}" &
-server_pid=$!
-trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
+# 3. Build and start the server, unless one was handed to us.
+if [ -n "${external_server}" ]; then
+  server="${external_server}"
+else
+  server="127.0.0.1:${PORT}"
+  cargo build --release -p iiif-server > /dev/null
+  ./target/release/iiif-server serve "${gen}" --bind "${server}" &
+  server_pid=$!
+  trap 'kill "${server_pid}" 2>/dev/null || true' EXIT
+fi
 for _ in $(seq 1 50); do
-  if curl -sf "http://127.0.0.1:${PORT}/healthz" > /dev/null 2>&1; then
+  if curl -sf "http://${server}/healthz" > /dev/null 2>&1; then
     break
   fi
   sleep 0.1
@@ -93,7 +109,7 @@ run_suite() {
   DYLD_LIBRARY_PATH="${libmagic_dir}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}" \
     LD_LIBRARY_PATH="${libmagic_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
     "${venv}/bin/python" "${venv}/bin/iiif-validate.py" \
-    -s "127.0.0.1:${PORT}" -p "${suite_prefix}" -i "validation.tif" \
+    -s "${server}" -p "${suite_prefix}" -i "validation.tif" \
     --version "${suite_version}" --level "${level}" -v
 }
 

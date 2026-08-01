@@ -155,13 +155,13 @@ tasks:
       - zizmor --persona=pedantic --offline .github/
 
   lint:docker:
-    desc: hadolint over Dockerfiles (bench harness only — nothing ships in one)
+    desc: hadolint over every Dockerfile — the shipping image and the bench harness
     method: checksum
     sources:
       - "**/Dockerfile"
       - .hadolint.yaml
     cmds:
-      - hadolint --config .hadolint.yaml tools/bench/cantaloupe/Dockerfile
+      - hadolint --config .hadolint.yaml Dockerfile tools/bench/cantaloupe/Dockerfile
 
   lint:shell:
     desc: shellcheck + shfmt (check mode) over shell scripts
@@ -199,6 +199,26 @@ tasks:
     desc: Run the official IIIF validator (v3 level 2) against a local build
     cmds:
       - scripts/validate.sh
+
+  image:
+    desc: Build the container image locally — the same Dockerfile the release publishes
+    cmds:
+      - >-
+        docker build
+        --build-arg IIIF_BUILD_REVISION="$(git rev-parse --short HEAD)"
+        --tag iiif-server:local .
+
+  image:smoke:
+    desc: Build the image and prove it serves IIIF, healthchecks, and stops on SIGTERM
+    cmds:
+      - task: image
+      - scripts/smoke_image.sh iiif-server:local
+
+  image:validate:
+    desc: Run the official IIIF validators against the container image, not a host build
+    cmds:
+      - task: image
+      - scripts/validate_image.sh iiif-server:local
 
   fixtures:gen:
     desc: Regenerate the committed test masters (requires libvips via mise)
