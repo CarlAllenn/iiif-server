@@ -365,15 +365,12 @@ jobs:
           set -o pipefail
           scripts/validate_image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" \
             | tee validator-report.txt
-      - name: Scan the published image
-        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
-        with:
-          image-ref: >-
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.manifest.outputs.digest }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          severity: CRITICAL,HIGH
+      # Image scanning deliberately does NOT gate a release; it lives in
+      # scheduled.yml. Its input is the advisory database, which changes
+      # without commits — the repo's never-fingerprint class. A CVE published
+      # tomorrow must not retroactively fail today's release, and a release
+      # must not die because a scanner's installer had a bad day (which is
+      # exactly how v0.1.0's third attempt failed).
       - uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
       # Keyless: the signing identity is this workflow's path at this tag, so
       # a consumer can require exactly that and nothing else can forge it.

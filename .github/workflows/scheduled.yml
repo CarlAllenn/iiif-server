@@ -100,3 +100,27 @@ jobs:
         run: lychee .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  image-scan:
+    name: Trivy over the published image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+          # Audit until derived from an observed run, like the publish
+          # workflow's allowlist. Recorded rather than assumed.
+          disable-sudo: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      # Scans whatever `latest` currently resolves to, which is the point:
+      # the question is not "was this image clean when we built it" but "is
+      # the image people are running clean today".
+      - uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        with:
+          image-ref: ghcr.io/carlallenn/iiif-server:latest
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
