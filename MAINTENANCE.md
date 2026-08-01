@@ -27,7 +27,7 @@ bundled-roots option and every rustls path now resolves to
 `rustls-platform-verifier`, so the container image ships a certificate
 bundle as a file instead — see
 [docs/release-engineering.md](docs/release-engineering.md). And `moxcms` is
-not a dependency yet, because ICC colour management is not implemented, so
+not a dependency yet, because ICC colour management is not implemented (#45), so
 the class is eight crates today and nine when it lands.
 
 Everything else (`fast_image_resize`, `jpeg-encoder`, `gif`,

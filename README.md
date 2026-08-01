@@ -101,7 +101,8 @@ Deployment recipes (CDN caching, forward-auth, systemd):
 
 The founding spec's engineering milestones are built and continuously
 verified, with one exception recorded honestly: ICC colour management (M2,
-via `moxcms`) is not implemented.
+via `moxcms`) is not implemented
+([#45](https://github.com/CarlAllenn/iiif-server/issues/45)).
 
 Releases are signed and published — versioned image, attested binaries, and
 the validator report attached to each release. **Product naming and the first
@@ -115,7 +116,7 @@ Nothing is published to crates.io, permanently — the reasoning is in
 Windows binaries are not shipped yet. Identifier resolution is the boundary
 between a crafted URL and path traversal, and its fuzz target encodes Unix
 path semantics; Windows adds backslash separators, reserved device names and
-drive-relative paths, which will be tested before anything is published for
-it.
+drive-relative paths, which will be tested before anything is published for it
+([#44](https://github.com/CarlAllenn/iiif-server/issues/44)).
 
 Licensed [AGPL-3.0-only](LICENSE).
