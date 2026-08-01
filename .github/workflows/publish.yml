@@ -247,18 +247,27 @@ jobs:
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
-          # Derived from the audit run of v0.1.0's first successful publish
-          # (2026-08-01), closing the recorded audit-mode exception. Two
-          # endpoints came out of that run which no amount of reading would
-          # have produced: uploads.github.com for the release assets, and
-          # tuf-repo.github.com for `gh attestation verify`. GitHub's own
-          # runner infrastructure (artifact blob storage, results-receiver)
-          # is implicitly permitted and deliberately not listed — those
-          # hostnames are shard-numbered and rotate.
+          # Derived from the audit run of the first successful publish
+          # (2026-08-01), closing the recorded audit-mode exception. This is
+          # the OBSERVED list, not a filtered one. An earlier attempt dropped
+          # the npm hosts as apparent noise and failed immediately: validate.sh
+          # runs `mise --cd tools/fixtures install`, and mise loads config
+          # hierarchically, so the root mise.toml's npm tool is installed too.
+          # Endpoints that look unnecessary are exactly what an audit is for.
+          #
+          # Two more that no amount of reading would have produced:
+          # uploads.github.com for the release assets, and tuf-repo.github.com
+          # for `gh attestation verify`.
+          #
+          # GitHub's own runner infrastructure (artifact blob storage,
+          # results-receiver) is implicitly permitted and deliberately absent —
+          # those hostnames are shard-numbered and rotate between runs.
           egress-policy: block
           disable-sudo: true
           allowed-endpoints: >
             api.github.com:443
+            api.npmjs.org:443
+            api.osv.dev:443
             auth.docker.io:443
             codeload.github.com:443
             conda.anaconda.org:443
@@ -271,12 +280,14 @@ jobs:
             mise-versions.jdx.dev:443
             mise.jdx.dev:443
             nodejs.org:443
+            npm.jsr.io:443
             objects.githubusercontent.com:443
             pkg-containers.githubusercontent.com:443
             production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
             pypi.org:443
             registry-1.docker.io:443
+            registry.npmjs.org:443
             raw.githubusercontent.com:443
             rekor.sigstore.dev:443
             release-assets.githubusercontent.com:443
