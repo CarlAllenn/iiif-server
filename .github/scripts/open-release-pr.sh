@@ -51,7 +51,7 @@ trap cleanup EXIT
 # already exited early when there was nothing to bump, so all three differ
 # from the base commit by the time we get here.
 request=$(
-  BRANCH="${branch}" TITLE="${title}" python3 - << 'PY'
+  STAGING="${staging}" TITLE="${title}" python3 - << 'PY'
 import base64, json, os
 
 additions = []
