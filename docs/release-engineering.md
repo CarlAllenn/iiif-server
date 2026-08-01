@@ -219,42 +219,53 @@ These cannot be automated and gate the first release:
   update, with no bypass actors. Every verification points at the tag; a
   movable anchor is no anchor.
 
-## The first publish attempt, and what it cost
+## What the first release cost, and what it taught
 
-The first run of phase 2 failed at the push step: `IMAGE_NAME` came from
-`${{ github.repository }}`, which preserves the owner's capitals, and OCI
-repository names must be lowercase — the registry rejected
-`ghcr.io/CarlAllenn/iiif-server` outright. Local testing never caught it
-because local builds are tagged `iiif-server:local` and never touch a
-registry.
+v0.1.0 took five attempts. Every failure is worth recording, because they
+share one cause and it is not the one that looks obvious.
 
-Nothing was published. The image had built and passed its smoke test, and the
-failure came before the push, so no digest, signature or transparency-log
-entry ever existed. That is the architecture working: a broken publish leaves
-nothing public to clean up.
+| # | Failed at | Cause |
+| --- | --- | --- |
+| 1 | image push | `IMAGE_NAME` from `${{ github.repository }}` preserves the owner's capitals; OCI names must be lowercase |
+| 2 | Release PR merge | the PR's commit was made with `git commit` on a runner, so it was unsigned and `require-signed-commits` refused it |
+| 3 | publish, step 7 | `mise-action` with no `install_args` installed the whole toolchain, including one needing an unlisted npm host |
+| 4 | CI image job | `mise` verifies tool provenance against Sigstore's TUF root, which that job's allowlist omitted |
+| 5 | publish, step 16 | the trivy marketplace installer failed; scanning did not belong on the release path at all |
 
-Recovering it required suspending the tag-immutability ruleset to delete the
-`v0.1.0` tag, then re-enabling it. That is a deliberate exception and worth
-recording honestly:
+Three of the five were **marketplace actions used where mise was the house
+rule** — trivy, cosign, and the tool set mise itself installs. Every tool in
+this repository is pinned and checksummed through mise, and the CI canon says
+so in comments; reaching for `uses:` instead is what produced the failures.
 
-- It was safe **only** because nothing referenced the tag — no release, no
-  image, no signature, no consumer. The rule protects published artifacts,
-  and there were none.
-- The alternative was shipping 0.1.1 as the first release, leaving a
-  generated `CHANGELOG.md` permanently announcing a 0.1.0 that does not
-  exist. A public document that is wrong forever costs more than a
-  documented, one-time suspension while the repository was empty.
-- It should not happen again. Once anything is published, a tag is load
-  bearing and the answer is a new version, not a rewritten one.
+The other two were things that only exist in the CI environment: how GitHub
+resolves an image reference, and what it will accept as a signed commit.
+Nothing local reproduced either.
 
-A workflow also runs the definition found at the ref that triggered it, which
-is why the fix could not simply be re-run against the existing tag.
+The pattern across all five: **everything testable locally worked, and
+everything that depended on how the environment behaves needed a real run.**
+The architecture held throughout — no failure ever published anything, because
+the smoke test precedes the push and the release stays a draft until the end.
 
-## Known gaps## Known gaps
+Two artifacts also shipped wrong before being caught, both claims not backed
+by their evidence:
 
-- **The harden-runner allowlists in `release.yml` and `publish.yml` are
-  derived by construction, not from an audit run.** Replace them with
-  audit-derived endpoints after the first live release, per the CI canon.
+- `validator-report.txt` was 130 bytes of section headers, because the
+  validator writes results to stderr and only stdout was captured — while the
+  release notes described it as the conformance evidence. Now captured with
+  `2>&1` and asserted to contain two clean suites, so a stub fails the
+  release.
+- The `v0.1.0` tag was recreated twice under a suspended immutability
+  ruleset. Defensible only because nothing referenced it — no image, no
+  signature, no consumer — and the ruleset is back on. Once anything is
+  published a tag is load bearing, and the answer is a new version.
+
+## Known gaps## Known gaps## Known gaps
+
+- **`release.yml`'s allowlist is still derived by construction.**
+  `publish.yml`'s is now audit-derived, from v0.1.0's first successful
+  publish; two of its endpoints — `uploads.github.com` and
+  `tuf-repo.github.com` — could not have been produced by reading. Do the
+  same for `release.yml` when it next runs under audit.
 - **Reproducible image builds are not yet asserted.** The inputs are pinned
   (base images by digest, dependencies by lockfile, `--locked`), but nothing
   proves two builds of a tag produce the same digest.

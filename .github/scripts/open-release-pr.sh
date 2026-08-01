@@ -10,9 +10,15 @@
 # writes every file in a single commit, which the REST contents endpoint
 # cannot do.
 #
-# The branch is reset to the commit being released on every run, so the PR
+# The branch is updated to the commit being released on every run, so the PR
 # always shows the release that would happen if it were merged now rather than
 # the one that would have happened when it was opened.
+#
+# It is updated in ONE move, from its old release commit straight to the new
+# one, via a staging ref. The obvious two-step — reset the branch to main,
+# then commit — leaves the branch momentarily identical to main, and GitHub
+# closes a pull request whose diff is empty. That churned the Release PR
+# number on every re-run and threw away its review thread (issue #53).
 set -eu
 
 cd "$(dirname "$0")/../.."
@@ -25,15 +31,21 @@ cd "$(dirname "$0")/../.."
 branch="release/v${VERSION}"
 title="chore: release v${VERSION}"
 
-# Point the branch at the commit this bump was built from. Force, because an
-# earlier run may have left a stale proposal there.
-if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" > /dev/null 2>&1; then
-  gh api "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" \
+# The staging ref is where the commit is built. It is disposable and no pull
+# request ever points at it, so it is free to sit at main's head.
+staging="release-staging/v${VERSION}"
+if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${staging}" > /dev/null 2>&1; then
+  gh api "repos/${GITHUB_REPOSITORY}/git/refs/heads/${staging}" \
     --method PATCH -f sha="${GITHUB_SHA}" -F force=true > /dev/null
 else
   gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
-    --method POST -f "ref=refs/heads/${branch}" -f sha="${GITHUB_SHA}" > /dev/null
+    --method POST -f "ref=refs/heads/${staging}" -f sha="${GITHUB_SHA}" > /dev/null
 fi
+cleanup() {
+  gh api "repos/${GITHUB_REPOSITORY}/git/refs/heads/${staging}" \
+    --method DELETE > /dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
 # These three files are the entire release bump, and prepare-release.sh has
 # already exited early when there was nothing to bump, so all three differ
@@ -59,7 +71,7 @@ print(json.dumps({
         "input": {
             "branch": {
                 "repositoryNameWithOwner": os.environ["GITHUB_REPOSITORY"],
-                "branchName": os.environ["BRANCH"],
+                "branchName": os.environ["STAGING"],
             },
             "message": {"headline": os.environ["TITLE"]},
             "fileChanges": {"additions": additions},
@@ -83,6 +95,16 @@ verified=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${oid}" \
 if [ "${verified}" != "true" ]; then
   echo "FAIL: release commit ${oid} is unsigned; the PR would be unmergeable" >&2
   exit 1
+fi
+# One move: old release commit -> new release commit. The branch never holds
+# a tree equal to main, so an open PR stays open and simply shows a
+# force-push.
+if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" > /dev/null 2>&1; then
+  gh api "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" \
+    --method PATCH -f sha="${oid}" -F force=true > /dev/null
+else
+  gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+    --method POST -f "ref=refs/heads/${branch}" -f sha="${oid}" > /dev/null
 fi
 echo "committed ${oid} to ${branch}, signature verified"
 

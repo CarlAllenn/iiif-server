@@ -247,17 +247,15 @@ jobs:
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
-          # TEMPORARY: audit, not block. This job's allowlist was written by
-          # construction and has already been wrong twice (Docker Hub's
-          # CloudFront blob host, then registry.npmjs.org). The steps below
-          # it — GHCR pushes, Sigstore, artifact download, release upload —
-          # have still never run, and each wrong guess costs a tag.
-          #
-          # The canon is that allowlists are DERIVED FROM AN AUDIT RUN
-          # (templates/ci/README.md; ci.yml's own jobs say so). This is that
-          # run. Restore `block` with the observed endpoints immediately
-          # afterwards — the endpoints below are kept as the starting point.
-          egress-policy: audit
+          # Derived from the audit run of v0.1.0's first successful publish
+          # (2026-08-01), closing the recorded audit-mode exception. Two
+          # endpoints came out of that run which no amount of reading would
+          # have produced: uploads.github.com for the release assets, and
+          # tuf-repo.github.com for `gh attestation verify`. GitHub's own
+          # runner infrastructure (artifact blob storage, results-receiver)
+          # is implicitly permitted and deliberately not listed — those
+          # hostnames are shard-numbered and rotate.
+          egress-policy: block
           disable-sudo: true
           allowed-endpoints: >
             api.github.com:443
@@ -284,7 +282,10 @@ jobs:
             release-assets.githubusercontent.com:443
             static.crates.io:443
             static.rust-lang.org:443
+            token.actions.githubusercontent.com:443
             tuf-repo-cdn.sigstore.dev:443
+            tuf-repo.github.com:443
+            uploads.github.com:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -363,8 +364,17 @@ jobs:
           DIGEST: ${{ steps.manifest.outputs.digest }}
         run: |
           set -o pipefail
-          scripts/validate_image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" \
+          # 2>&1: the validator writes its per-test results to stderr and only
+          # the section headers to stdout. v0.1.0's first publish attached a
+          # 130-byte report that proved nothing while the release notes
+          # claimed it was the conformance evidence.
+          scripts/validate_image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" 2>&1 \
             | tee validator-report.txt
+      # The step above passing means the validators passed. This asserts the
+      # ARTIFACT says so too — an attached report is a claim, and a claim
+      # nobody checked is how the stub shipped in the first place.
+      - name: Assert the validator report is evidence
+        run: .github/scripts/assert-validator-report.sh
       # Image scanning deliberately does NOT gate a release; it lives in
       # scheduled.yml. Its input is the advisory database, which changes
       # without commits — the repo's never-fingerprint class. A CVE published
