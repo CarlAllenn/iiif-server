@@ -306,7 +306,7 @@ jobs:
           # publishing job has no use for. Canon rule, templates/ci/README.md.
           # (libvips and libmagic come from tools/fixtures/mise.toml, which
           # validate.sh installs itself.)
-          install_args: uv
+          install_args: uv cosign
           # No tool cache in a job whose output gets signed (zizmor
           # cache-poisoning).
           cache: false
@@ -371,7 +371,6 @@ jobs:
       # tomorrow must not retroactively fail today's release, and a release
       # must not die because a scanner's installer had a bad day (which is
       # exactly how v0.1.0's third attempt failed).
-      - uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
       # Keyless: the signing identity is this workflow's path at this tag, so
       # a consumer can require exactly that and nothing else can forge it.
       - name: Sign the image

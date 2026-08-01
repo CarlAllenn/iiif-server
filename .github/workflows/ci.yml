@@ -411,7 +411,11 @@ jobs:
             crates.io:443
             dl-cdn.alpinelinux.org:443
             github.com:443
+            gcr.io:443
             index.crates.io:443
+            mirror.gcr.io:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
             objects.githubusercontent.com:443
             production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
@@ -433,3 +437,16 @@ jobs:
           cache-to: type=gha,mode=max,scope=ci-amd64
       # The same script the release runs before it publishes anything.
       - run: scripts/smoke_image.sh iiif-server:ci
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+          install_args: trivy task
+          # This step runs after the image is built, so a poisoned cache
+          # entry could reach an artifact (zizmor cache-poisoning).
+          cache: false
+      # Gated here rather than in the release: a PR proves identical content,
+      # and the weekly cron above re-runs it so new CVEs turn the gate red
+      # without a commit. trivy pulls its database from
+      # mirror.gcr.io/aquasec/trivy-db.
+      - run: task scan:image IMAGE=iiif-server:ci
