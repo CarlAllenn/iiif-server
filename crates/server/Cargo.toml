@@ -18,7 +18,11 @@ bytes.workspace = true
 hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1", features = ["server", "tokio", "http1"] }
 http-body-util = "0.1"
-tokio = { workspace = true, features = ["rt-multi-thread", "net", "macros", "signal", "fs"] }
+# io-util + time: the `healthcheck` self-probe (raw socket, no HTTP client).
+# sync + signal: graceful shutdown — watch fans the stop out to live
+# connections, mpsc counts them down, signal delivers the SIGTERM that a
+# container's PID 1 would otherwise ignore entirely.
+tokio = { workspace = true, features = ["rt-multi-thread", "net", "macros", "signal", "fs", "io-util", "time", "sync"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Optional allocator: C, but trusted-compute C that never parses hostile

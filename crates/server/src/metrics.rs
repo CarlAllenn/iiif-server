@@ -1,8 +1,12 @@
 //! Hand-rolled Prometheus text exposition — the fixed, frozen metric set from
 //! the design spec: request counts, latency histogram, worker-queue depth, 503
-//! count.
+//! count, plus build info.
 //!
-//! Zero dependencies, zero knobs, permanent surface.
+//! Zero dependencies, zero knobs, permanent surface. `iiif_build_info` joined
+//! that set when versioned artifacts started shipping: once a release can be
+//! pulled by tag, "which build is actually running?" has to be answerable from
+//! monitoring rather than by shelling into a container that has no shell. It
+//! is metadata about the binary, not a feature — the frozen scope is intact.
 
 use std::{
     fmt::Write as _,
@@ -76,6 +80,16 @@ impl Metrics {
     #[must_use]
     pub fn render(&self, in_flight: u64, queued: u64) -> String {
         let mut out = String::with_capacity(2048);
+        // Build metadata as the conventional info-gauge: identity lives in the
+        // labels, the value is always 1.
+        let _ = writeln!(
+            out,
+            "# HELP iiif_build_info Build identity of the running binary; the value is always 1.\n\
+            # TYPE iiif_build_info gauge\n\
+            iiif_build_info{{version=\"{}\",revision=\"{}\"}} 1",
+            crate::VERSION,
+            crate::REVISION,
+        );
         let _ = writeln!(
             out,
             "# HELP iiif_requests_total Requests received, by endpoint family.\n\
