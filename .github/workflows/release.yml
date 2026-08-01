@@ -1,0 +1,145 @@
+---
+name: release
+
+# Phase 1 of two. This workflow decides the version, maintains the Release PR,
+# and — when that PR is merged — tags and cuts a DRAFT GitHub release. It
+# builds nothing and publishes nothing.
+#
+# Merging the Release PR is the commitment point (release canon,
+# renovate-config templates/release/). Nothing releases on an arbitrary push
+# to main: an ordinary push only ever refreshes the PR.
+#
+# Phase 2 (publish.yml) is triggered by the tag this pushes, and runs with
+# `github.ref` set to that tag. That split is the whole point: provenance
+# records the ref of the run that signs, so a workflow running on `main` can
+# only ever attest `refs/heads/main` — a moving pointer that proves nothing.
+# edtf learned this at v1.0.0, whose attestations permanently name a commit
+# that built none of the published bytes.
+#
+# Neither release-plz nor release-please can drive this workspace; the
+# evidence is in docs/release-engineering.md. Phase 1 is therefore git-cliff
+# (version + changelog) plus gh, which is less machinery than it sounds.
+
+"on":
+  push:
+    branches: [main]
+  # Recovery path: re-run the tag step against a release commit whose first
+  # attempt failed. The script refuses to run on anything else.
+  workflow_dispatch: {}
+
+permissions: {}
+
+# Never cancel a release mid-flight; queue instead. Keyed per commit.
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag on Release PR merge
+    # The two jobs are mutually exclusive by commit subject, so unlike a
+    # release-plz setup there is no ordering race between them to serialise.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.head_commit.message, 'chore: release v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the draft release (the tag goes via the PAT)
+    steps:
+      # First step of every job, before checkout: runtime egress enforcement
+      # (issue #6 canon). Derived by construction rather than from an audit
+      # run — replace with audit-derived endpoints after the first live
+      # release, per templates/ci/README.md.
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            github.com:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # git-cliff reads the whole history to build the notes.
+          fetch-depth: 0
+          # The tag is pushed with the PAT below, so the checkout credential
+          # is neither needed nor wanted.
+          persist-credentials: false
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+          # Single-purpose job: install only its own tools (canon rule,
+          # templates/ci/README.md).
+          install_args: taplo aqua:orhun/git-cliff
+          # No tool cache in a job that tags a release (zizmor
+          # cache-poisoning): everything downstream of this tag gets signed.
+          cache: false
+      - name: Tag and cut the draft release
+        env:
+          # PAT, not GITHUB_TOKEN: a tag pushed with the default token does
+          # not trigger publish.yml, and the release would silently never
+          # build.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          .github/scripts/tag-release.sh
+
+  release-pr:
+    name: Maintain the Release PR
+    if: >-
+      github.event_name == 'push' &&
+      !startsWith(github.event.head_commit.message, 'chore: release v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the release branch
+      pull-requests: write # open/update the Release PR
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            crates.io:443
+            github.com:443
+            index.crates.io:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            static.crates.io:443
+            static.rust-lang.org:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+          install_args: rust taplo aqua:orhun/git-cliff
+      - name: Prepare the release
+        id: prepare
+        run: .github/scripts/prepare-release.sh
+      # A range of nothing but chore/ci/docs commits bumps no version, so
+      # there is nothing to propose and no empty PR to leave lying around.
+      - name: Open or update the Release PR
+        if: steps.prepare.outputs.release == 'true'
+        env:
+          # PAT so the Release PR's own CI runs — PRs created with the
+          # default GITHUB_TOKEN do not trigger workflows, and an unverified
+          # release PR is the one PR that must never be merged unverified.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: .github/scripts/open-release-pr.sh

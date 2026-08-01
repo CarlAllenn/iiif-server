@@ -200,6 +200,12 @@ tasks:
     cmds:
       - scripts/validate.sh
 
+  release:preview:
+    desc: Show the version and notes the next Release PR would propose
+    cmds:
+      - 'echo "next version: $(git cliff --bumped-version)"'
+      - git cliff --bump --unreleased
+
   image:
     desc: Build the container image locally — the same Dockerfile the release publishes
     cmds:

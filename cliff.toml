@@ -1,0 +1,97 @@
+# git-cliff: the version decision and the changelog for release phase 1.
+#
+# Why this rather than a release tool: neither release-plz nor release-please
+# can drive this workspace. release-plz detects per-crate changes by running
+# `cargo package`, which cannot succeed for interdependent crates that are not
+# on crates.io (upstream issue #2595, open); release-please has no model for
+# `[workspace.package]` or `version.workspace = true` at all. The evidence,
+# and why publishing the library crates to crates.io is not the way out, is in
+# docs/release-engineering.md.
+
+[bump]
+# 0.x with a feature commit bumps the minor: 0.1.0 -> 0.2.0.
+features_always_bump_minor = true
+
+# THE IMPORTANT ONE. git-cliff's default sends a breaking change on 0.x
+# straight to 1.0.0 — and in this project 1.0 is not a version number, it is
+# the scope-freeze commitment in MAINTENANCE.md: feature-complete by design,
+# security and correctness fixes only, forever. Reaching it by accident,
+# because someone wrote `feat!:` before launch, would publish a promise
+# nobody made. Breaking changes bump the minor while we are pre-1.0, which is
+# also what plain semver says 0.x means. 1.0.0 gets set deliberately, by hand,
+# once, at launch.
+breaking_always_bump_major = false
+
+# No tags exist yet. The first Release PR opens at 0.1.0 rather than 0.0.1:
+# a working server with the full compliance table is not a patch release, and
+# 1.0.0 is reserved as above.
+initial_tag = "v0.1.0"
+
+# Housekeeping commits do not justify a release on their own. A run where
+# everything since the last tag is chore/ci/docs produces no version bump and
+# therefore no Release PR.
+no_increment_regex = "^(chore|ci|docs|style|test)"
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are recorded here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+over the surface named in [MAINTENANCE.md](MAINTENANCE.md) — the HTTP API, the
+CLI flags and the container contract. Internal Rust APIs are not covered:
+nothing in this workspace is published to a registry.
+
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}]\
+{% if previous.version %}\
+(https://github.com/CarlAllenn/iiif-server/compare/{{ previous.version }}...{{ version }})\
+{% else %}\
+(https://github.com/CarlAllenn/iiif-server/releases/tag/{{ version }})\
+{% endif %} - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## Unreleased
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+
+{% for commit in commits %}\
+- {{ commit.message }}\
+{% if commit.remote.pr_number %} ([#{{ commit.remote.pr_number }}](https://github.com/CarlAllenn/iiif-server/pull/{{ commit.remote.pr_number }})){% endif %}
+{% endfor %}\
+{% endfor %}"""
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+# A commit that is not conventional is a bug in the commit-msg hook, not
+# something to quietly drop from the release notes.
+filter_unconventional = false
+protect_breaking_commits = true
+split_commits = false
+filter_commits = false
+topo_order = false
+sort_commits = "oldest"
+tag_pattern = "v[0-9]*"
+
+commit_parsers = [
+  { message = "^feat", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Changed" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Testing" },
+  { message = "^build", group = "Build" },
+  { message = "^ci", group = "CI" },
+  # Release commits are the mechanism, not the news.
+  { message = "^chore: release", skip = true },
+  { message = "^chore\\(deps\\)", group = "Dependencies" },
+  { message = "^chore", group = "Miscellaneous" },
+  { message = "^revert", group = "Reverted" },
+  { body = ".*security", group = "Security" },
+]
