@@ -1,4 +1,15 @@
 ---
+# TEMPORARY — EGRESS IS IN AUDIT MODE ACROSS EVERY JOB IN THIS FILE.
+#
+# The allowlists here were written by construction and have broken four
+# separate runs, each time on an endpoint that reading the workflow could not
+# have predicted (Docker Hub's CloudFront blob host, npm via mise's
+# hierarchical config, the attestation bundle host, mise's version index).
+# Fixing them one discovery at a time costs a release cycle each.
+#
+# This run derives the real list for EVERY job at once. The follow-up restores
+# `block` everywhere with observed endpoints, and after that the only way to
+# change an allowlist is another audit run — not judgement.
 name: publish
 
 # Phase 2 of two, triggered by the tag phase 1 pushes. This is where anything
@@ -66,7 +77,7 @@ jobs:
       # replace with audit-derived endpoints after the first live release.
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
-          egress-policy: block
+          egress-policy: audit
           disable-sudo: true
           allowed-endpoints: >
             api.github.com:443
@@ -194,7 +205,7 @@ jobs:
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
-          egress-policy: block
+          egress-policy: audit
           disable-sudo: true
           # mise resolves which toolchain version to install through
           # mise-versions.jdx.dev. Without it the DNS request is dropped and
@@ -275,7 +286,7 @@ jobs:
           # Do not prune this by inspection. If an entry looks superfluous,
           # that is not evidence it is. Re-derive it from an audit run or leave
           # it alone.
-          egress-policy: block
+          egress-policy: audit
           disable-sudo: true
           allowed-endpoints: >
             api.github.com:443

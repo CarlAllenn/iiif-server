@@ -259,6 +259,27 @@ by their evidence:
   signature, no consumer — and the ruleset is back on. Once anything is
   published a tag is load bearing, and the answer is a new version.
 
+## v0.1.0's build ran under audit egress
+
+Deliberate, and recorded rather than discovered later. Every job's
+harden-runner policy was set to `audit` for the release that produced v0.1.0,
+because the hand-written allowlists had broken four separate runs on endpoints
+no reading of the workflow could have predicted — Docker Hub's CloudFront blob
+host, npm reached through mise's hierarchical config, the attestation bundle
+host, and mise's own version index. Each discovery cost a full release cycle.
+
+What this does and does not weaken: egress policy protects the *build* from a
+compromised dependency exfiltrating or calling home. It has no bearing on
+artifact integrity or the signature chain — v0.1.0 is still built from a
+tagged commit, smoke tested before it is pushed, pulled back by digest and
+re-verified, validated by the official validators, signed by cosign with the
+workflow's own identity at the tag, attested, and that attestation checked as
+a stranger would check it.
+
+The follow-up restores `block` on all fourteen jobs using the endpoints that
+run actually observed, and that gets verified by the next release. After
+that, the only legitimate way to change an allowlist is another audit run.
+
 ## Known gaps## Known gaps## Known gaps
 
 - **`release.yml`'s allowlist is still derived by construction.**
