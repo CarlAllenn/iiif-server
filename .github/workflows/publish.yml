@@ -1,0 +1,367 @@
+---
+name: publish
+
+# Phase 2 of two, triggered by the tag phase 1 pushes. This is where anything
+# is built, published, signed or attested — and it runs with `github.ref` set
+# to the tag, which is the entire reason for the split. Provenance records the
+# ref of the run that signs it, so a workflow running on `main` can only ever
+# attest `refs/heads/main`: a moving pointer that proves nothing about the
+# bytes. Sigstore is append-only, so a wrong attestation is permanent.
+#
+# The order is deliberate and comes from the edtf release runbook:
+#
+#   build -> smoke test -> push -> pull the published bytes back and prove
+#   they are what we built -> attest -> verify the attestation names the tag
+#   -> consume as a stranger -> only then publish the release
+#
+# Attestation happens last and only on proof. A run that attests before
+# proving produces a signature that verifies green while asserting something
+# false.
+
+"on":
+  push:
+    tags: [v*]
+  # Resume path for a release whose publish failed partway. ALWAYS dispatch
+  # with --ref <tag>: dispatching from a branch would sign with branch-ref
+  # provenance, which is the exact defect this shape exists to prevent. The
+  # guard in every job refuses anything that is not a tag.
+  workflow_dispatch: {}
+
+permissions: {}
+
+# Never cancel a publish mid-flight.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  image:
+    name: Image ${{ matrix.platform }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Both architectures build natively — arm64 runners are free on
+          # public repos, so there is no reason to emulate a Rust build
+          # under QEMU and every reason not to.
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write # push the per-architecture image by digest
+    steps:
+      # First step of every job, before checkout: runtime egress enforcement
+      # (issue #6 canon). Derived by construction, not from an audit run —
+      # replace with audit-derived endpoints after the first live release.
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            auth.docker.io:443
+            codeload.github.com:443
+            crates.io:443
+            dl-cdn.alpinelinux.org:443
+            ghcr.io:443
+            github.com:443
+            index.crates.io:443
+            objects.githubusercontent.com:443
+            pkg-containers.githubusercontent.com:443
+            production.cloudflare.docker.com:443
+            raw.githubusercontent.com:443
+            registry-1.docker.io:443
+            release-assets.githubusercontent.com:443
+            static.crates.io:443
+            static.rust-lang.org:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Assert we are publishing from a tag
+        run: .github/scripts/assert-tag-ref.sh
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Built and proven before it is pushed anywhere. A registry write is not
+      # free to undo — a digest, once pulled by anyone, exists forever.
+      - name: Build for smoke testing
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          load: true
+          tags: iiif-server:candidate
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            IIIF_BUILD_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+      - name: Smoke test the candidate
+        run: scripts/smoke_image.sh iiif-server:candidate
+      # The Linux binaries are lifted out of the image rather than built a
+      # second time. Two reasons: the downloadable binary is then byte-identical
+      # to the one people run in the container, and cross-compiling to musl on
+      # the runner would need musl-tools via apt, which harden-runner's
+      # disable-sudo correctly forbids. The image builder is musl-native, so
+      # the work is already done.
+      - name: Extract the static binary
+        env:
+          TARGET: ${{ matrix.arch == 'amd64' && 'x86_64-unknown-linux-musl' || 'aarch64-unknown-linux-musl' }}
+        run: .github/scripts/extract-binary.sh
+      - name: Push by digest
+        id: push
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            IIIF_BUILD_REVISION=${{ github.sha }}
+          # SBOM and SLSA provenance attached to the digest itself, so anyone
+          # pulling the image finds them without a side channel. Only useful
+          # because the binary is built with cargo-auditable — without it the
+          # SBOM would describe one opaque file and look like diligence.
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          outputs: >-
+            type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},
+            push-by-digest=true,name-canonical=true,push=true
+      - name: Record the digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binary-linux-${{ matrix.arch }}
+          path: dist/*
+          retention-days: 1
+          if-no-files-found: error
+
+  binaries:
+    name: Binary ${{ matrix.target }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # macOS only: the Linux binaries come out of the image job, where
+          # the builder is already musl-native. macOS is shipped because
+          # `iiif-server check` is a workstation tool — auditing a mounted
+          # collection is not a `docker run -v` shaped task — and because
+          # docs/deployment.md's systemd recipe has always pointed at a
+          # binary that, until now, no one could obtain.
+          #
+          # Windows is deliberately absent. Identifier resolution is a
+          # hostile-input boundary between a crafted URL and path traversal,
+          # and its fuzz target encodes Unix path semantics; backslash
+          # separators, reserved device names and drive-relative paths are a
+          # different attack surface that is not yet tested. Tracking issue
+          # noted in the README rather than shipped untested.
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            crates.io:443
+            github.com:443
+            index.crates.io:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            static.crates.io:443
+            static.rust-lang.org:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Assert we are publishing from a tag
+        shell: bash
+        run: .github/scripts/assert-tag-ref.sh
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+          install_args: rust
+          # No tool cache in a job whose output gets signed (zizmor
+          # cache-poisoning): a poisoned entry would be laundered into an
+          # attested artifact.
+          cache: false
+      - name: Build
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          IIIF_BUILD_REVISION: ${{ github.sha }}
+        run: .github/scripts/build-binary.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binary-${{ matrix.target }}
+          path: dist/*
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish, prove, sign
+    needs: [image, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # attach assets, publish the draft release
+      packages: write # write the multi-architecture manifest
+      id-token: write # OIDC for keyless signing and attestations
+      attestations: write # store build provenance
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-sudo: true
+          allowed-endpoints: >
+            api.github.com:443
+            codeload.github.com:443
+            conda.anaconda.org:443
+            crates.io:443
+            files.pythonhosted.org:443
+            fulcio.sigstore.dev:443
+            ghcr.io:443
+            github.com:443
+            index.crates.io:443
+            mise-versions.jdx.dev:443
+            mise.jdx.dev:443
+            nodejs.org:443
+            objects.githubusercontent.com:443
+            pkg-containers.githubusercontent.com:443
+            pypi.org:443
+            raw.githubusercontent.com:443
+            rekor.sigstore.dev:443
+            release-assets.githubusercontent.com:443
+            static.crates.io:443
+            static.rust-lang.org:443
+            tuf-repo-cdn.sigstore.dev:443
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Assert we are publishing from a tag
+        run: .github/scripts/assert-tag-ref.sh
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.7.12
+          cache: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: dist
+          pattern: binary-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # OCI labels are what make the GHCR package page link back to this repo
+      # instead of being an anonymous blob, and what lets scanners trace an
+      # image to its source.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # The ladder: pin as tightly or as loosely as you like.
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=iiif-server
+            org.opencontainers.image.description=Complete, correct IIIF Image API 3.0 and 2.1 — one static binary
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}#deployment
+      - name: Create the multi-architecture manifest
+        id: manifest
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: .github/scripts/push-manifest.sh
+      # The runbook invariant: prove the published bytes are the bytes we
+      # built, BEFORE anything signs them.
+      - name: Pull the published image back and smoke test it
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+        run: scripts/smoke_image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+      # Conformance as a property of the artifact people pull, not of an
+      # equivalent local build.
+      - name: Official IIIF validators against the published image
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+        run: |
+          set -o pipefail
+          scripts/validate_image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" \
+            | tee validator-report.txt
+      - name: Scan the published image
+        uses: aquasecurity/trivy-action@dc5a429b52fcf669ce959baa2c2dd26090d2a6c4 # v0.32.0
+        with:
+          image-ref: >-
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.manifest.outputs.digest }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+      - uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+      # Keyless: the signing identity is this workflow's path at this tag, so
+      # a consumer can require exactly that and nothing else can forge it.
+      - name: Sign the image
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+        run: cosign sign --yes "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
+      - name: Attest the binaries
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: dist/*
+      # Verify as a stranger would, against the tag rather than against
+      # whatever this run happens to know about itself.
+      - name: Verify the signature and provenance name this tag
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/verify-published.sh
+      - name: Attach assets and publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+        run: .github/scripts/publish-release.sh
