@@ -349,7 +349,12 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
           push-to-registry: true
-      - name: Attest the binaries
+      # Generated after the artifacts exist so the checksums are the ones this
+      # release actually published, and before the attestation below so the
+      # installer is signed alongside what it installs.
+      - name: Generate the installer
+        run: .github/scripts/make-installer.sh
+      - name: Attest the binaries and installer
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
         with:
           subject-path: dist/*
@@ -365,3 +370,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DIGEST: ${{ steps.manifest.outputs.digest }}
         run: .github/scripts/publish-release.sh
+      # Last, because the formula's URLs only resolve once the release is
+      # public. Skips itself cleanly when the tap is not set up — an optional
+      # distribution channel must not be able to fail a release that has
+      # already published.
+      - name: Update the Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: .github/scripts/update-homebrew-tap.sh

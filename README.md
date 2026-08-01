@@ -17,6 +17,12 @@ docker run --rm -p 6363:6363 -v ./masters:/imageroot:ro \
 iiif-server serve s3://bucket/prefix --endpoint https://objects.example.com
 ```
 
+Or without Docker at all:
+
+```bash
+curl -LsSf https://github.com/CarlAllenn/iiif-server/releases/latest/download/install.sh | sh
+```
+
 The image is one static binary and a certificate bundle on nothing else —
 no shell, no package manager, no distro — about 5.7 MB to pull, against the
 incumbent's 769 MB. Static binaries for Linux and macOS are attached to each

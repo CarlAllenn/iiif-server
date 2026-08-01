@@ -71,6 +71,24 @@ attached to every [release](https://github.com/CarlAllenn/iiif-server/releases),
 with checksums and build provenance. The Linux binaries are extracted from the
 image itself, so they are byte-identical to what runs in the container.
 
+Install it with the release installer, which resolves your platform,
+downloads the matching archive, and verifies its SHA-256 against a value baked
+in at release time — it refuses to install bytes that do not match:
+
+```bash
+curl -LsSf https://github.com/CarlAllenn/iiif-server/releases/latest/download/install.sh | sh
+```
+
+`IIIF_INSTALL_DIR` chooses where it lands (default `~/.local/bin`). Or with
+Homebrew, once the tap is published:
+
+```bash
+brew install carlallenn/tap/iiif-server
+```
+
+Or download the archive for your platform straight from the release and check
+the accompanying `.sha256` yourself. All three routes deliver the same binary.
+
 ```bash
 iiif-server serve ./images
 ```

@@ -13,6 +13,8 @@ rediscovery.
 | Static Linux binaries (amd64, arm64) | GitHub release | systemd, and institutions with no container platform |
 | macOS binaries (Apple Silicon, Intel) | GitHub release | evaluation, and `iiif-server check` on a workstation |
 | Validator report | GitHub release | conformance as verifiable fact, not a README claim |
+| `install.sh` | GitHub release | `curl \| sh`, with this release's checksums baked in |
+| Homebrew formula | `CarlAllenn/homebrew-tap` | `brew install carlallenn/tap/iiif-server` |
 
 Nothing is published to crates.io. See "Why not crates.io" below — it is a
 standing decision, not a naming delay.
@@ -118,6 +120,36 @@ lockstep — `[workspace.package].version` and both `[workspace.dependencies]`
 constraints — and fails loudly if any substitution misses, rather than opening
 a PR whose tree cannot resolve.
 
+## Why the installer is hand-written rather than dist
+
+`dist` (cargo-dist) is the obvious tool for `curl | sh` and a Homebrew tap,
+and it cannot be used here for a concrete reason rather than a stylistic one.
+
+To generate installers, dist must own the binary build — the installers
+reference artifact names only it knows. But building `*-unknown-linux-musl`
+on a runner needs a C toolchain targeting musl, because mimalloc is C
+compiled through the `cc` crate (rustup's self-contained musl support covers
+Rust linking, not arbitrary C). That means `musl-tools` via apt, which
+harden-runner's `disable-sudo` forbids — correctly.
+
+It would also cost a property worth keeping: the Linux binaries on the
+release are *extracted from the container image*, so the binary someone
+downloads is byte-identical to the one running in production. dist would
+rebuild them.
+
+The three convention collisions noted earlier — harden-runner cannot precede
+checkout in its generated CI, it self-installs by piping curl to a shell, and
+it brings a second rustup-managed toolchain — were survivable. The musl one
+is not.
+
+What replaced it is `make-installer.sh`, which generates the installer from
+the artifacts that were actually produced, with each checksum baked in. That
+last part matters: an installer that resolves "latest" at run time trusts
+whatever the API returns at that moment, whereas this one can only install
+the exact bytes the release published, and fails loudly otherwise. Verified
+against a local server: happy path, corrupted download, and unsupported
+platform.
+
 ## Why not crates.io
 
 Publishing `iiif-core` and `iiif-sources` would make release-plz work. It is
@@ -188,6 +220,12 @@ These cannot be automated and gate the first release:
 - **Reproducible image builds are not yet asserted.** The inputs are pinned
   (base images by digest, dependencies by lockfile, `--locked`), but nothing
   proves two builds of a tag produce the same digest.
-- **Installers** — `curl | sh` and a Homebrew tap — are not yet published.
-  Binaries are attested and checksummed on the release; the ergonomic layer
-  on top is follow-up work.
+- **The Homebrew tap repository does not exist yet.** `CarlAllenn/homebrew-tap`
+  plus a `TAP_TOKEN` secret with contents:write on it. The release step skips
+  itself cleanly without them — an optional distribution channel must not be
+  able to fail a release that has already published.
+- **Release secrets are not scoped to a GitHub Environment.** zizmor's
+  auditor persona flags this (`secrets-outside-env`); the repo gate runs at
+  `pedantic`, which does not. Worth revisiting only if you want an approval
+  gate on publishing — though the Release PR merge is already the human
+  commitment point, so the second gate would mostly be ceremony.
