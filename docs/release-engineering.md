@@ -219,7 +219,38 @@ These cannot be automated and gate the first release:
   update, with no bypass actors. Every verification points at the tag; a
   movable anchor is no anchor.
 
-## Known gaps
+## The first publish attempt, and what it cost
+
+The first run of phase 2 failed at the push step: `IMAGE_NAME` came from
+`${{ github.repository }}`, which preserves the owner's capitals, and OCI
+repository names must be lowercase — the registry rejected
+`ghcr.io/CarlAllenn/iiif-server` outright. Local testing never caught it
+because local builds are tagged `iiif-server:local` and never touch a
+registry.
+
+Nothing was published. The image had built and passed its smoke test, and the
+failure came before the push, so no digest, signature or transparency-log
+entry ever existed. That is the architecture working: a broken publish leaves
+nothing public to clean up.
+
+Recovering it required suspending the tag-immutability ruleset to delete the
+`v0.1.0` tag, then re-enabling it. That is a deliberate exception and worth
+recording honestly:
+
+- It was safe **only** because nothing referenced the tag — no release, no
+  image, no signature, no consumer. The rule protects published artifacts,
+  and there were none.
+- The alternative was shipping 0.1.1 as the first release, leaving a
+  generated `CHANGELOG.md` permanently announcing a 0.1.0 that does not
+  exist. A public document that is wrong forever costs more than a
+  documented, one-time suspension while the repository was empty.
+- It should not happen again. Once anything is published, a tag is load
+  bearing and the answer is a new version, not a rewritten one.
+
+A workflow also runs the definition found at the ref that triggered it, which
+is why the fix could not simply be re-run against the existing tag.
+
+## Known gaps## Known gaps
 
 - **The harden-runner allowlists in `release.yml` and `publish.yml` are
   derived by construction, not from an audit run.** Replace them with
