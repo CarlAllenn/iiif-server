@@ -78,6 +78,7 @@ jobs:
             objects.githubusercontent.com:443
             pkg-containers.githubusercontent.com:443
             production.cloudflare.docker.com:443
+            production.cloudfront.docker.com:443
             raw.githubusercontent.com:443
             registry-1.docker.io:443
             release-assets.githubusercontent.com:443
@@ -242,6 +243,7 @@ jobs:
           disable-sudo: true
           allowed-endpoints: >
             api.github.com:443
+            auth.docker.io:443
             codeload.github.com:443
             conda.anaconda.org:443
             crates.io:443
@@ -255,7 +257,10 @@ jobs:
             nodejs.org:443
             objects.githubusercontent.com:443
             pkg-containers.githubusercontent.com:443
+            production.cloudflare.docker.com:443
+            production.cloudfront.docker.com:443
             pypi.org:443
+            registry-1.docker.io:443
             raw.githubusercontent.com:443
             rekor.sigstore.dev:443
             release-assets.githubusercontent.com:443
