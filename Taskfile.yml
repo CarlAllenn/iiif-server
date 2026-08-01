@@ -220,6 +220,17 @@ tasks:
       - task: image
       - scripts/smoke_image.sh iiif-server:local
 
+  scan:image:
+    desc: trivy CVE scan of a built image (IMAGE=ref, default iiif-server:local)
+    # Deliberately NOT fingerprinted, for the same reason lint:deny is not: a
+    # CVE scan's inputs include the trivy database, which changes daily. A
+    # source-checksum skip is unsound for any security gate — new CVEs must be
+    # able to turn this red without a commit.
+    vars:
+      IMAGE: '{{.IMAGE | default "iiif-server:local"}}'
+    cmds:
+      - trivy image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 {{.IMAGE}}
+
   image:validate:
     desc: Run the official IIIF validators against the container image, not a host build
     cmds:
