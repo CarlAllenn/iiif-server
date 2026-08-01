@@ -15,3 +15,9 @@ ignored:
   # pinned apt versions break rebuilds of the Cantaloupe bench harness —
   # a non-shipping comparison image.
   - DL3008
+  # DL3018 (this repo): same rotation problem on Alpine, and the only apk
+  # install we make is in the *builder* stage of the shipping image — the
+  # final stage is FROM scratch, so no apk package is ever distributed. What
+  # reaches users is pinned where it matters: base images by digest, Rust
+  # dependencies by the committed lockfile with --locked.
+  - DL3018

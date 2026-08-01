@@ -9,6 +9,13 @@
       "heading_line_length": 120,
       "tables": false,
       "code_blocks": false
+    },
+    // Repo-local: CHANGELOG.md is Keep a Changelog, where every release
+    // repeats the same section names ("### Added" under each "## [x.y.z]").
+    // Duplicate headings under DIFFERENT parents are the format, not a
+    // defect; duplicates under the same parent are still an error.
+    "no-duplicate-heading": {
+      "siblings_only": true
     }
   },
   "globs": ["**/*.md"],

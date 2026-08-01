@@ -1,0 +1,17 @@
+# The image build needs the workspace manifests, the lockfile, the crate
+# sources and LICENSE. Everything else is context we would pay to upload and
+# then invalidate the build cache with.
+.git
+.github
+.claude
+.task
+target
+docs
+fuzz
+spikes
+tools
+tests
+scripts
+*.md
+.DS_Store
+lefthook-local.yml

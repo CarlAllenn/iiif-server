@@ -5,7 +5,18 @@ sources downloaded and inspected, official spec/compliance documents and validat
 items are the two code-gated M0 spikes and the product name.
 **Naming:** the repo name `iiif-server` is a deliberate placeholder. Product name, GitHub org, and domain are deferred
 to the launch milestone (M8). The constraint this imposes: **publish nothing to crates.io, Docker Hub, or any registry
-until named** — registry names are forever. The GitHub repo itself is **public from M0** (decided 2026-07-26, CI
+until named** — registry names are forever.
+
+> **AMENDED 2026-08-01 — registry publication is unblocked for the container image and release binaries; the
+> announcement is not.** Owner decision, applying the amendment recorded on issue #38 (2026-07-30). The blanket rule
+> conflated two very different registries. A **GHCR path** is renameable at the cost of a republish and one line in each
+> consumer's compose file; what is genuinely permanent is the repository that *builds and signs* the artifact, because
+> with keyless signing the identity a verification policy names is the workflow path — and that is settled. A
+> **crates.io name** is the opposite: unreclaimable, and publishing the library crates would additionally create a
+> public Rust API with semver obligations, so that half of the rule stands permanently rather than pending a name (see
+> `docs/release-engineering.md`). The spec's other distinction survives intact: **public ≠ announced.** Publishing an
+> image is not announcing a product, and no candidate product name appears anywhere. OSS-Fuzz enrolment stays at M8,
+> where the real name is the actual prerequisite. The GitHub repo itself is **public from M0** (decided 2026-07-26, CI
 economics: public repos get unlimited free Actions minutes including the free arm64 runners our x86/ARM matrix wants; a
 later rename/transfer redirects cleanly, unlike registries). **Public ≠ announced:** no candidate product names in docs,
 issues, branches, or commits before M8; no announcement before M8.
@@ -95,6 +106,12 @@ conformance. The only deployment-varying values are the numeric limits.
   client was evaluated and rejected.
 - **TLS roots: `rustls` + bundled `webpki-roots`** — the only shape compatible with a `FROM scratch` image (no system
   root store). Root-store refreshes are routine Renovate items.
+  > **CORRECTED 2026-08-01.** This is not what shipped, and the drift went unnoticed until an SBOM was generated from
+  > the binary. `reqwest` 0.13 removed the bundled-roots option outright: every rustls path now resolves to
+  > `rustls-platform-verifier`, i.e. the operating system trust store, which a `FROM scratch` image does not have. The
+  > goal survives without dependency surgery — the image carries the certificate bundle as a file with `SSL_CERT_FILE`
+  > pointing at it, and is still `FROM scratch`. Worth noting the failure shape this hid: serving local files works
+  > regardless, so only `s3://` deployments would have broken.
 - **Allocator:** musl's malloc is a known multithreaded-workload hazard and the M2 bench must not measure it by
   accident. M0 benches musl-native vs `mimalloc`; if contention shows, ship mimalloc — which is C, classified honestly
   as **trusted-compute C that never parses hostile bytes**. The precise headline either way: *zero C parsing untrusted
@@ -270,8 +287,9 @@ works with any conformant image server, including this one.
 2. **SPIKE 2 (M0):** `j2k` correctness + region-at-scale performance vs OpenJPEG goldens; levels-metadata check; rayon
    pinning. Plan B: vendored-FFI OpenJPEG behind the codec trait.
 3. **Allocator bench (M0):** musl-native vs mimalloc under concurrent decode.
-4. **Product name / org / domain** — parked until M8 by explicit decision. Until then: no registry publication, no
-   announcement.
+4. **Product name / org / domain** — parked until M8 by explicit decision. Until then: no *announcement*. Registry
+   publication was unblocked for the image and binaries on 2026-08-01 (see the amendment at the top); crates.io
+   publication is refused permanently, independent of naming.
 
 ## Appendix — evaluation record (2026-07-26)
 
