@@ -48,6 +48,14 @@ Supporting rules:
 - **The tag is pushed with a PAT**, not `GITHUB_TOKEN`. Tags pushed with the
   default token do not trigger workflows, and a release that silently
   triggers nothing looks exactly like a success.
+- **The Release PR's commit is created through the GitHub API**, not with
+  `git commit`. This repository requires signed commits and a runner has no
+  signing key, so a locally-made commit is `verified: false` and the Release
+  PR cannot be merged at all — which is how v0.1.0 first failed. Commits
+  made via the API are signed by GitHub with its own key.
+  `createCommitOnBranch` also writes all three files in one commit, which the
+  REST contents endpoint cannot. `open-release-pr.sh` asserts the resulting
+  commit is verified rather than trusting that it is.
 - **Every phase-2 job refuses to run on a non-tag ref**, and refuses a tag
   whose version disagrees with the manifest.
 

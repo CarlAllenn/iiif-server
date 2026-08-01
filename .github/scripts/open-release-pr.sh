@@ -2,37 +2,89 @@
 # Release phase 1, step 1b: put the prepared bump on a branch and keep exactly
 # one Release PR open against it.
 #
-# The branch is force-pushed on every run so the PR always shows the release
-# that would happen if it were merged now, rather than the one that would have
-# happened when it was opened.
+# The commit is created through GitHub's API rather than with `git commit`,
+# because this repository requires signed commits and a runner has no signing
+# key. A locally-made commit is `verified: false`, and the Release PR is then
+# unmergeable — which is exactly how v0.1.0 first failed. Commits created via
+# the API are signed by GitHub with its own key, and createCommitOnBranch
+# writes every file in a single commit, which the REST contents endpoint
+# cannot do.
+#
+# The branch is reset to the commit being released on every run, so the PR
+# always shows the release that would happen if it were merged now rather than
+# the one that would have happened when it was opened.
 set -eu
 
 cd "$(dirname "$0")/../.."
 
 : "${VERSION:?VERSION must be set}"
 : "${GH_TOKEN:?GH_TOKEN must be set (the release PAT, not GITHUB_TOKEN)}"
-: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
+: "${GITHUB_REPOSITORY:?}"
+: "${GITHUB_SHA:?}"
+
 branch="release/v${VERSION}"
 title="chore: release v${VERSION}"
 
-git config user.name "github-actions[bot]"
-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git remote set-url origin \
-  "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-
-git checkout -B "${branch}"
-git add Cargo.toml Cargo.lock CHANGELOG.md
-# Nothing staged means the branch already matches main — the PR is current.
-if git diff --cached --quiet; then
-  echo "no changes to propose for v${VERSION}"
-  exit 0
+# Point the branch at the commit this bump was built from. Force, because an
+# earlier run may have left a stale proposal there.
+if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${branch}" > /dev/null 2>&1; then
+  gh api "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}" \
+    --method PATCH -f sha="${GITHUB_SHA}" -F force=true > /dev/null
+else
+  gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+    --method POST -f "ref=refs/heads/${branch}" -f sha="${GITHUB_SHA}" > /dev/null
 fi
 
-# The subject is load-bearing: the tag job keys off exactly this string, and
-# so does the guard that stops phase 1 proposing a release on top of a
-# release.
-git commit -m "${title}"
-git push --force origin "${branch}"
+# These three files are the entire release bump, and prepare-release.sh has
+# already exited early when there was nothing to bump, so all three differ
+# from the base commit by the time we get here.
+request=$(
+  BRANCH="${branch}" TITLE="${title}" python3 - << 'PY'
+import base64, json, os
+
+additions = []
+for path in ("Cargo.toml", "Cargo.lock", "CHANGELOG.md"):
+    with open(path, "rb") as handle:
+        additions.append(
+            {"path": path, "contents": base64.b64encode(handle.read()).decode()}
+        )
+
+print(json.dumps({
+    "query": (
+        "mutation($input: CreateCommitOnBranchInput!) {"
+        "  createCommitOnBranch(input: $input) { commit { oid } }"
+        "}"
+    ),
+    "variables": {
+        "input": {
+            "branch": {
+                "repositoryNameWithOwner": os.environ["GITHUB_REPOSITORY"],
+                "branchName": os.environ["BRANCH"],
+            },
+            "message": {"headline": os.environ["TITLE"]},
+            "fileChanges": {"additions": additions},
+            "expectedHeadOid": os.environ["GITHUB_SHA"],
+        }
+    },
+}))
+PY
+)
+
+oid=$(printf '%s' "${request}" | gh api graphql --input - \
+  --jq '.data.createCommitOnBranch.commit.oid')
+if [ -z "${oid}" ]; then
+  echo "FAIL: the API returned no commit" >&2
+  exit 1
+fi
+
+# Prove the point of all this rather than assuming it.
+verified=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${oid}" \
+  --jq '.commit.verification.verified')
+if [ "${verified}" != "true" ]; then
+  echo "FAIL: release commit ${oid} is unsigned; the PR would be unmergeable" >&2
+  exit 1
+fi
+echo "committed ${oid} to ${branch}, signature verified"
 
 body=$(
   cat << EOF
