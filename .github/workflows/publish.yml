@@ -370,11 +370,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DIGEST: ${{ steps.manifest.outputs.digest }}
         run: .github/scripts/publish-release.sh
-      # Last, because the formula's URLs only resolve once the release is
-      # public. Skips itself cleanly when the tap is not set up — an optional
-      # distribution channel must not be able to fail a release that has
-      # already published.
-      - name: Update the Homebrew tap
-        env:
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
-        run: .github/scripts/update-homebrew-tap.sh

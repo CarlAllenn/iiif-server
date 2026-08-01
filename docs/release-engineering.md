@@ -14,7 +14,6 @@ rediscovery.
 | macOS binaries (Apple Silicon, Intel) | GitHub release | evaluation, and `iiif-server check` on a workstation |
 | Validator report | GitHub release | conformance as verifiable fact, not a README claim |
 | `install.sh` | GitHub release | `curl \| sh`, with this release's checksums baked in |
-| Homebrew formula | `CarlAllenn/homebrew-tap` | `brew install carlallenn/tap/iiif-server` |
 
 Nothing is published to crates.io. See "Why not crates.io" below — it is a
 standing decision, not a naming delay.
@@ -122,8 +121,8 @@ a PR whose tree cannot resolve.
 
 ## Why the installer is hand-written rather than dist
 
-`dist` (cargo-dist) is the obvious tool for `curl | sh` and a Homebrew tap,
-and it cannot be used here for a concrete reason rather than a stylistic one.
+`dist` (cargo-dist) is the obvious tool for a `curl | sh` installer, and it
+cannot be used here for a concrete reason rather than a stylistic one.
 
 To generate installers, dist must own the binary build — the installers
 reference artifact names only it knows. But building `*-unknown-linux-musl`
@@ -220,10 +219,13 @@ These cannot be automated and gate the first release:
 - **Reproducible image builds are not yet asserted.** The inputs are pinned
   (base images by digest, dependencies by lockfile, `--locked`), but nothing
   proves two builds of a tag produce the same digest.
-- **The Homebrew tap repository does not exist yet.** `CarlAllenn/homebrew-tap`
-  plus a `TAP_TOKEN` secret with contents:write on it. The release step skips
-  itself cleanly without them — an optional distribution channel must not be
-  able to fail a release that has already published.
+- **No Homebrew tap**, deliberately. A tap needs its own repository
+  (`brew install user/tap/x` resolves only to `github.com/user/homebrew-tap`),
+  and it would add packaging polish to a path `install.sh` already covers.
+  The audience for this is GLAM institutions, where an evaluation runs on
+  Docker and a systems team, not on a developer's Mac — so the tap earns
+  little and costs a repository. Revisit if someone asks for it; the endgame
+  for a tool with real adoption is homebrew-core, which needs no tap at all.
 - **Release secrets are not scoped to a GitHub Environment.** zizmor's
   auditor persona flags this (`secrets-outside-env`); the repo gate runs at
   `pedantic`, which does not. Worth revisiting only if you want an approval

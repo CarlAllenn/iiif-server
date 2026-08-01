@@ -79,15 +79,9 @@ in at release time — it refuses to install bytes that do not match:
 curl -LsSf https://github.com/CarlAllenn/iiif-server/releases/latest/download/install.sh | sh
 ```
 
-`IIIF_INSTALL_DIR` chooses where it lands (default `~/.local/bin`). Or with
-Homebrew, once the tap is published:
-
-```bash
-brew install carlallenn/tap/iiif-server
-```
-
-Or download the archive for your platform straight from the release and check
-the accompanying `.sha256` yourself. All three routes deliver the same binary.
+`IIIF_INSTALL_DIR` chooses where it lands (default `~/.local/bin`). Or
+download the archive for your platform straight from the release and check
+the accompanying `.sha256` yourself. Both routes deliver the same binary.
 
 ```bash
 iiif-server serve ./images
