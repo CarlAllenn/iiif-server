@@ -247,7 +247,17 @@ jobs:
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
-          egress-policy: block
+          # TEMPORARY: audit, not block. This job's allowlist was written by
+          # construction and has already been wrong twice (Docker Hub's
+          # CloudFront blob host, then registry.npmjs.org). The steps below
+          # it — GHCR pushes, Sigstore, artifact download, release upload —
+          # have still never run, and each wrong guess costs a tag.
+          #
+          # The canon is that allowlists are DERIVED FROM AN AUDIT RUN
+          # (templates/ci/README.md; ci.yml's own jobs say so). This is that
+          # run. Restore `block` with the observed endpoints immediately
+          # afterwards — the endpoints below are kept as the starting point.
+          egress-policy: audit
           disable-sudo: true
           allowed-endpoints: >
             api.github.com:443
@@ -290,6 +300,15 @@ jobs:
         with:
           # renovate: datasource=github-releases depName=jdx/mise
           version: 2026.7.12
+          # Only what this job runs: uv builds the validator's venv. Without
+          # this it installs the whole toolchain — including
+          # npm:markdownlint-cli2, which needs registry.npmjs.org and which a
+          # publishing job has no use for. Canon rule, templates/ci/README.md.
+          # (libvips and libmagic come from tools/fixtures/mise.toml, which
+          # validate.sh installs itself.)
+          install_args: uv
+          # No tool cache in a job whose output gets signed (zizmor
+          # cache-poisoning).
           cache: false
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
