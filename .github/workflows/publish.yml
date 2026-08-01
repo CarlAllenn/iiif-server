@@ -259,9 +259,15 @@ jobs:
           # uploads.github.com for the release assets, and tuf-repo.github.com
           # for `gh attestation verify`.
           #
-          # GitHub's own runner infrastructure (artifact blob storage,
-          # results-receiver) is implicitly permitted and deliberately absent —
-          # those hostnames are shard-numbered and rotate between runs.
+          # THE COMPLETE OBSERVED LIST, unfiltered, union'd with what was
+          # already here. Three separate runs were broken by removing entries
+          # that looked unnecessary — npm (mise loads config hierarchically),
+          # then the attestation bundle host, then npm again. Every removal was
+          # reasoned and every one was wrong.
+          #
+          # Do not prune this by inspection. If an entry looks superfluous,
+          # that is not evidence it is. Re-derive it from an audit run or leave
+          # it alone.
           egress-policy: block
           disable-sudo: true
           allowed-endpoints: >
@@ -276,6 +282,8 @@ jobs:
             fulcio.sigstore.dev:443
             ghcr.io:443
             github.com:443
+            hosted-compute-request-orchestrator-prod-eus-02.githubapp.com:443
+            hosted-compute-watchdog-prod-eus-02.githubapp.com:443
             index.crates.io:443
             mise-versions.jdx.dev:443
             mise.jdx.dev:443
@@ -283,16 +291,21 @@ jobs:
             npm.jsr.io:443
             objects.githubusercontent.com:443
             pkg-containers.githubusercontent.com:443
+            prod.app-api.stepsecurity.io:443
             production.cloudflare.docker.com:443
             production.cloudfront.docker.com:443
+            productionresultssa2.blob.core.windows.net:443
             pypi.org:443
+            raw.githubusercontent.com:443
             registry-1.docker.io:443
             registry.npmjs.org:443
-            raw.githubusercontent.com:443
             rekor.sigstore.dev:443
             release-assets.githubusercontent.com:443
+            results-receiver.actions.githubusercontent.com:443
+            run-actions-2-azure-eastus.actions.githubusercontent.com:443
             static.crates.io:443
             static.rust-lang.org:443
+            tmaproduction.blob.core.windows.net:443
             token.actions.githubusercontent.com:443
             tuf-repo-cdn.sigstore.dev:443
             tuf-repo.github.com:443
