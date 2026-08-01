@@ -5,6 +5,72 @@ derivative cache. Each of those is one proven layer in front of it.
 
 ## Running
 
+### Container
+
+The official image is `ghcr.io/carlallenn/iiif-server` — one static binary and
+a certificate bundle on nothing else. No shell, no package manager, no distro,
+about 5.7 MB to pull.
+
+```bash
+docker run --rm -p 6363:6363 -v ./masters:/imageroot:ro \
+    ghcr.io/carlallenn/iiif-server
+```
+
+Compose, digest-pinned as a deployment should be. Renovate keeps the digest
+current:
+
+```yaml
+services:
+  images:
+    image: ghcr.io/carlallenn/iiif-server@sha256:...
+    command: ["serve", "/imageroot", "--bind", "0.0.0.0:6363"]
+    volumes: ["./masters:/imageroot:ro"]
+    ports: ["6363:6363"]
+    # All true of this image, and worth asserting: the server is stateless,
+    # needs no writable filesystem, and drops every capability.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+```
+
+The image declares its own `HEALTHCHECK`, which is why `iiif-server
+healthcheck` exists: there is no shell in the image for a probe to use, so the
+binary probes itself. Under Kubernetes use an ordinary `httpGet` probe against
+`/healthz` instead — that needs nothing inside the container.
+
+Object storage works the same way, with credentials from the environment:
+
+```bash
+docker run --rm -p 6363:6363 -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
+    ghcr.io/carlallenn/iiif-server \
+    serve s3://bucket/prefix --endpoint https://objects.example.com
+```
+
+Before deploying, audit a collection with the offline inspector — no server,
+no config:
+
+```bash
+docker run --rm -v ./masters:/imageroot:ro \
+    ghcr.io/carlallenn/iiif-server check /imageroot
+```
+
+### Verifying what you pulled
+
+Images and binaries are signed keylessly, so the signing identity is the
+publishing workflow at its tag:
+
+```bash
+gh attestation verify oci://ghcr.io/carlallenn/iiif-server@sha256:... \
+    --repo CarlAllenn/iiif-server
+```
+
+### Binary
+
+Static binaries for Linux (amd64/arm64) and macOS (Apple Silicon/Intel) are
+attached to every [release](https://github.com/CarlAllenn/iiif-server/releases),
+with checksums and build provenance. The Linux binaries are extracted from the
+image itself, so they are byte-identical to what runs in the container.
+
 ```bash
 iiif-server serve ./images
 ```
@@ -101,4 +167,5 @@ NoNewPrivileges=yes
 ```
 
 The binary is static (musl) and needs no shared libraries, no config
-file, and no writable filesystem.
+file, and no writable filesystem — download it from the release, or copy it
+out of the container image, which is the same build.

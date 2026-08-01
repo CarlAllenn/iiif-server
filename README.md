@@ -9,12 +9,21 @@ including JPEG 2000/HTJ2K decode; **zero C parses untrusted input
 anywhere in the product**; stateless; scope-frozen at 1.0.
 
 ```bash
-iiif-server serve ./images
+docker run --rm -p 6363:6363 -v ./masters:/imageroot:ro \
+    ghcr.io/carlallenn/iiif-server
 ```
 
 ```bash
 iiif-server serve s3://bucket/prefix --endpoint https://objects.example.com
 ```
+
+The image is one static binary and a certificate bundle on nothing else —
+no shell, no package manager, no distro — about 5.7 MB to pull, against the
+incumbent's 769 MB. Static binaries for Linux and macOS are attached to each
+[release](https://github.com/CarlAllenn/iiif-server/releases); both are signed
+with build provenance you can verify
+([SECURITY.md](SECURITY.md)). Recipes, including a hardened compose file, are
+in [docs/deployment.md](docs/deployment.md).
 
 That is the whole configuration story: one root, numeric limits, pool
 sizing. No properties file, no feature toggles — capability is baked in
@@ -91,8 +100,22 @@ Deployment recipes (CDN caching, forward-auth, systemd):
 ## Status
 
 The founding spec's engineering milestones are built and continuously
-verified. Product naming, registry publication, signed releases, and the
-first announcement are deliberately deferred to the launch milestone —
-the repo being public is not the launch.
+verified, with one exception recorded honestly: ICC colour management (M2,
+via `moxcms`) is not implemented.
+
+Releases are signed and published — versioned image, attested binaries, and
+the validator report attached to each release. **Product naming and the first
+announcement remain deferred to the launch milestone**; publishing under the
+working name is deliberate, because a GHCR path can be renamed later at the
+cost of one line in a consumer's compose file, whereas the repository that
+builds and signs the artifacts is what a verification policy actually names.
+Nothing is published to crates.io, permanently — the reasoning is in
+[docs/release-engineering.md](docs/release-engineering.md).
+
+Windows binaries are not shipped yet. Identifier resolution is the boundary
+between a crafted URL and path traversal, and its fuzz target encodes Unix
+path semantics; Windows adds backslash separators, reserved device names and
+drive-relative paths, which will be tested before anything is published for
+it.
 
 Licensed [AGPL-3.0-only](LICENSE).

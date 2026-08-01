@@ -13,17 +13,48 @@ for it deliberately.
 
 Not a literal code-freeze. A network server parsing untrusted bytes
 always needs security response and dependency bumps. The honest residual
-is the **tracked dependency class** — `hyper`, `tokio`,
-`rustls`+`webpki-roots`, `object_store`, `tiff`, `zune-jpeg`, `png`,
-`j2k`, `moxcms` — all pure Rust, which demotes decoder advisories from
-RCE-class to mostly DoS-class. They are handled as Renovate bumps with
-occasional 0.x API absorption: a handful of interventions a year, mostly
-auto-merged. That — not "zero maintenance" — is the claim.
+is the **tracked dependency class** — `hyper`, `tokio`, `rustls`,
+`object_store`, `tiff`, `zune-jpeg`, `png`, `j2k` — all pure Rust, which
+demotes decoder advisories from RCE-class to mostly DoS-class. They are
+handled as Renovate bumps with occasional 0.x API absorption: a handful of
+interventions a year, mostly auto-merged. That — not "zero maintenance" —
+is the claim.
+
+Two corrections to an earlier version of that list, both found by
+generating an SBOM from the shipped binary rather than by reading the
+design spec. `webpki-roots` is not a dependency: `reqwest` 0.13 removed the
+bundled-roots option and every rustls path now resolves to
+`rustls-platform-verifier`, so the container image ships a certificate
+bundle as a file instead — see
+[docs/release-engineering.md](docs/release-engineering.md). And `moxcms` is
+not a dependency yet, because ICC colour management is not implemented, so
+the class is eight crates today and nine when it lands.
 
 Everything else (`fast_image_resize`, `jpeg-encoder`, `gif`,
 `image-webp`, the hand-rolled PDF writer, all geometry math) is
 **pin-forever**: pure compute that never sees hostile bytes and is never
 forced to update.
+
+## What a version number promises
+
+Versions follow semver over a **stated surface**, because "follows semver"
+means nothing until you say what it covers:
+
+- **Covered:** the HTTP surface (IIIF endpoints, response semantics,
+  headers), the CLI flags, and the container contract (entrypoint, default
+  bind address, exposed port, user).
+- **Not covered:** log format, metric values, and internal Rust APIs —
+  nothing in this workspace is published to a registry, so there is no
+  library API to promise anything about.
+
+Tag policy: version tags are immutable; `0.1` and `0` float forward to the
+newest release in their range; `latest` tracks the newest release. Pin a
+digest for deployments and a version tag for everything else.
+
+**1.0 is not a routine increment.** It is the scope-freeze commitment
+above, set deliberately and once. Pre-1.0 a breaking change bumps the
+minor version, and the release tooling is configured so that reaching
+1.0.0 by accident is impossible.
 
 ## Response window
 
