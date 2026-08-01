@@ -11,15 +11,28 @@ locked_verify_provenance = true # re-verify provenance on install even when the 
 # resolution, and ad-hoc `mise x tool@ver` installs of unpinned tools fail
 # (mechanical no-ad-hoc enforcement).
 locked = true
-# Never install a release younger than 3 days (supply-chain cooldown; Renovate
-# holds automerged tool bumps a further 14 days on top). pipx:/npm: forward
-# this into transitive dependency resolution.
-minimum_release_age = "72h"
+# Never install a release younger than 14 days — the same number as the
+# Renovate minimumReleaseAge and pnpm gates (three-layer policy, issue #5;
+# see templates/pnpm/README.md). pipx:/npm: forward this into transitive
+# dependency resolution.
+minimum_release_age = "336h"
 # Dev Mac + CI runners; the default would also lock musl/windows we never target.
 lockfile_platforms = ["macos-arm64", "linux-x64", "linux-arm64"]
 # asdf plugins are legacy (single-maintainer bash, no checksums); ubi is
 # deprecated upstream in favor of github:.
 disable_backends = ["asdf", "ubi"]
+# Precompiled ruby (jdx/ruby) rather than a ruby-build source compile.
+# Measured in monumental-archive (#150): 364s of a 394s cold CI install was
+# one `make -j 2`; the precompiled path is 5s and arrives with a checksum AND
+# GitHub artifact attestations, which the cache.ruby-lang.org tarball has not.
+# Set explicitly even though mise makes it the default in 2026.8.0: lockfile
+# entries are matched on `options` exactly, so the default flip invalidates
+# every existing ruby entry — and non-major mise bumps automerge as silent
+# branch pushes, so that would land unattended. Setting it here means the
+# change arrives with a reviewed `mise lock`, once, per repo. Repos with no
+# ruby pin are unaffected. If no precompiled build exists for a version, the
+# locked-mode install fails loudly rather than quietly recompiling (verified).
+ruby.compile = false
 
 # Bootstrap guarantee: a fresh clone gets its git hooks installed by the
 # standard `mise install`; without this, .git/hooks/ is empty and the whole
