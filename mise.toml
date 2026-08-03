@@ -79,7 +79,7 @@ trivy = "0.72.0"
 # Keyless signing of the released image (publish.yml). Pinned here rather
 # than installed by sigstore/cosign-installer for the same reason every other
 # tool is: one pinned, checksummed source.
-cosign = "2.6.1"
+cosign = "3.1.2"
 # Release phase 1: next version from conventional commits + CHANGELOG.md.
 # Neither release-plz nor release-please can drive this workspace — both
 # assume a shape it does not have (docs/release-engineering.md records the
