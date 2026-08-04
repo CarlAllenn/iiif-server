@@ -70,11 +70,11 @@ todo = "warn"
 print_stdout = "warn"
 print_stderr = "warn"
 
-# TEMPORARY (issue #21): j2k pinned to our fork's dogfood stack — the
-# frames-sg/j2k#62 region-decode fix (upstream PR frames-sg/j2k#63), the
-# non-covered-tile skip, and region decode at arbitrary power-of-two
-# depth. Repoint at upstream revs as each lands; delete this section (and
-# deny.toml's allow-git entry) when a release carries them all.
-# Tracked-class doctrine: no permanent forks.
+# TEMPORARY (issue #21): j2k pinned to upstream main — all three fixes
+# we carried (region IDWT frames-sg/j2k#63, non-covered-tile skip
+# frames-sg/j2k#65, deep region reduction frames-sg/j2k#70) are merged
+# upstream but not yet in a crates.io release (v0.8.0 predates them).
+# Delete this section (and deny.toml's allow-git entry) when the next
+# release ships. Tracked-class doctrine: no permanent forks.
 [patch.crates-io]
-j2k = { git = "https://github.com/CarlAllenn/j2k", rev = "e5e20147184e002dd23857ee68a2a74a4334da96" }
+j2k = { git = "https://github.com/frames-sg/j2k", rev = "85e7e2987396b5c8a2c3b7b0228fd0d054164f28" }

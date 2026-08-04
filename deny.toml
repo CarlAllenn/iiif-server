@@ -135,6 +135,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 required-git-spec = "rev"
 unused-allowed-source = "deny"
 unused-allowed-org = "deny"
-# Temporary (issue #21): the j2k fork carrying the frames-sg/j2k#62 fix,
-# pinned by rev in [patch.crates-io]. Remove with the patch.
-allow-git = ["https://github.com/CarlAllenn/j2k"]
+# Temporary (issue #21): upstream j2k main carrying the merged fixes
+# ahead of the next release, pinned by rev in [patch.crates-io].
+# Remove with the patch.
+allow-git = ["https://github.com/frames-sg/j2k"]

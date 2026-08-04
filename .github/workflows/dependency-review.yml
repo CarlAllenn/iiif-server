@@ -33,7 +33,9 @@ jobs:
           # GitHub API responses over ~a few MB redirect to Azure blob
           # storage; the dependency graph diff is one of them.
           allowed-endpoints: >
+            api.deps.dev:443
             api.github.com:443
+            api.securityscorecards.dev:443
             github.com:443
             *.blob.core.windows.net:443
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
