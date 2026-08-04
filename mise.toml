@@ -56,7 +56,7 @@ actionlint = "1.7.12"
 taplo = "0.10.0"
 yamllint = "1.38.0"
 editorconfig-checker = "3.8.0"
-uv = "0.11.31"
+uv = "0.11.33"
 "pipx:codespell" = "2.4.3"
 "aqua:EmbarkStudios/cargo-deny" = "0.20.2"
 # unused deps (metadata mode); not in aqua
@@ -79,7 +79,7 @@ trivy = "0.72.0"
 # Keyless signing of the released image (publish.yml). Pinned here rather
 # than installed by sigstore/cosign-installer for the same reason every other
 # tool is: one pinned, checksummed source.
-cosign = "2.6.1"
+cosign = "2.6.4"
 # Release phase 1: next version from conventional commits + CHANGELOG.md.
 # Neither release-plz nor release-please can drive this workspace — both
 # assume a shape it does not have (docs/release-engineering.md records the
@@ -89,5 +89,5 @@ cosign = "2.6.1"
 # Fixture tools (libvips/openjpeg/libmagic) live in tools/fixtures/mise.toml
 # — see the note there about conda-backend lockfile limits.
 # runtime for markdownlint-cli2
-node = "26.5.0"
-"npm:markdownlint-cli2" = "0.23.1"
+node = "26.5.1"
+"npm:markdownlint-cli2" = "0.23.2"
