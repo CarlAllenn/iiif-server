@@ -124,6 +124,24 @@ impl Jp2Master {
     }
 }
 
+/// The smallest `1/denom`-scaled rectangle covering `rect`: floor the
+/// origin, ceil the far edge. Mirrors the covering contract of
+/// `decode_region_scaled_pow2_into`, which sizes its output this way but
+/// only reports the rect after decoding — we need it first to size the
+/// buffer.
+const fn scaled_covering_pow2(rect: Rect, denom: u32) -> Rect {
+    let x0 = rect.x / denom;
+    let y0 = rect.y / denom;
+    let x1 = rect.x.saturating_add(rect.w).div_ceil(denom);
+    let y1 = rect.y.saturating_add(rect.h).div_ceil(denom);
+    Rect {
+        x: x0,
+        y: y0,
+        w: x1.saturating_sub(x0),
+        h: y1.saturating_sub(y0),
+    }
+}
+
 impl Master for Jp2Master {
     fn dimensions(&self) -> (u32, u32) {
         (self.width, self.height)
@@ -199,7 +217,7 @@ impl Master for Jp2Master {
             w: crop.w,
             h: crop.h,
         };
-        let scaled = roi.scaled_covering_denominator(1u32 << u32::from(levels).min(31));
+        let scaled = scaled_covering_pow2(roi, 1u32 << u32::from(levels).min(31));
         let mut pool = J2kScratchPool::new();
         let stride = scaled.w as usize * bpp;
         let mut out = vec![0u8; stride * scaled.h as usize];

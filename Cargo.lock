@@ -879,8 +879,8 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "j2k"
-version = "0.7.5"
-source = "git+https://github.com/CarlAllenn/j2k?rev=e5e20147184e002dd23857ee68a2a74a4334da96#e5e20147184e002dd23857ee68a2a74a4334da96"
+version = "0.8.0"
+source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
 dependencies = [
  "j2k-codec-math",
  "j2k-core",
@@ -891,21 +891,21 @@ dependencies = [
 
 [[package]]
 name = "j2k-codec-math"
-version = "0.7.5"
-source = "git+https://github.com/CarlAllenn/j2k?rev=e5e20147184e002dd23857ee68a2a74a4334da96#e5e20147184e002dd23857ee68a2a74a4334da96"
+version = "0.8.0"
+source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
 
 [[package]]
 name = "j2k-core"
-version = "0.7.5"
-source = "git+https://github.com/CarlAllenn/j2k?rev=e5e20147184e002dd23857ee68a2a74a4334da96#e5e20147184e002dd23857ee68a2a74a4334da96"
+version = "0.8.0"
+source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "j2k-native"
-version = "0.7.5"
-source = "git+https://github.com/CarlAllenn/j2k?rev=e5e20147184e002dd23857ee68a2a74a4334da96#e5e20147184e002dd23857ee68a2a74a4334da96"
+version = "0.8.0"
+source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
 dependencies = [
  "fearless_simd",
  "j2k-codec-math",
@@ -917,13 +917,13 @@ dependencies = [
 
 [[package]]
 name = "j2k-profile"
-version = "0.7.5"
-source = "git+https://github.com/CarlAllenn/j2k?rev=e5e20147184e002dd23857ee68a2a74a4334da96#e5e20147184e002dd23857ee68a2a74a4334da96"
+version = "0.8.0"
+source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
 
 [[package]]
 name = "j2k-types"
-version = "0.7.5"
-source = "git+https://github.com/CarlAllenn/j2k?rev=e5e20147184e002dd23857ee68a2a74a4334da96#e5e20147184e002dd23857ee68a2a74a4334da96"
+version = "0.8.0"
+source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
 
 [[package]]
 name = "jni"
