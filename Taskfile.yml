@@ -226,10 +226,16 @@ tasks:
     # CVE scan's inputs include the trivy database, which changes daily. A
     # source-checksum skip is unsound for any security gate — new CVEs must be
     # able to turn this red without a commit.
+    #
+    # Canonical invocation (renovate-config templates/trivy, issue #15
+    # there): vuln-only, --ignore-unfixed, ALL severities. The previous
+    # CRITICAL,HIGH floor was the weakest of the three variants the canon
+    # replaced; full severity costs nothing on a FROM scratch image.
     vars:
       IMAGE: '{{.IMAGE | default "iiif-server:local"}}'
     cmds:
-      - trivy image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 {{.IMAGE}}
+      - trivy image --config /dev/null --scanners vuln --ignore-unfixed
+        --exit-code 1 --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL {{.IMAGE}}
 
   image:validate:
     desc: Run the official IIIF validators against the container image, not a host build
