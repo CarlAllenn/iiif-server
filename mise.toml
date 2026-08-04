@@ -11,11 +11,11 @@ locked_verify_provenance = true # re-verify provenance on install even when the 
 # resolution, and ad-hoc `mise x tool@ver` installs of unpinned tools fail
 # (mechanical no-ad-hoc enforcement).
 locked = true
-# Never install a release younger than 14 days — the same number as the
+# Never install a release younger than 7 days — the same number as the
 # Renovate minimumReleaseAge and pnpm gates (three-layer policy, issue #5;
 # see templates/pnpm/README.md). pipx:/npm: forward this into transitive
 # dependency resolution.
-minimum_release_age = "336h"
+minimum_release_age = "168h"
 # Dev Mac + CI runners; the default would also lock musl/windows we never target.
 lockfile_platforms = ["macos-arm64", "linux-x64", "linux-arm64"]
 # asdf plugins are legacy (single-maintainer bash, no checksums); ubi is
