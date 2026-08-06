@@ -171,23 +171,26 @@ version = "0.13.2"
 backend = "cargo:cargo-fuzz"
 
 [[tools.cosign]]
-version = "2.6.1"
+version = "3.1.2"
 backend = "aqua:sigstore/cosign"
 
 [tools.cosign."platforms.linux-arm64"]
-checksum = "sha256:56a16480bdd56ec789abaa65924402f6b92c0041f06885995853c05567b76f34"
-url = "https://github.com/sigstore/cosign/releases/download/v2.6.1/cosign-linux-arm64"
-url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/299820290"
+checksum = "sha256:90e7ae0b5dfd60f20816b52c012addf7fc055ebcc7bea4ce81c428ca8518c302"
+url = "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-linux-arm64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/480496294"
+provenance = "cosign"
 
 [tools.cosign."platforms.linux-x64"]
-checksum = "sha256:064954c5d8c7e3b28188eee5b1727b31c411550bc5fefd41aa672d3c761d103a"
-url = "https://github.com/sigstore/cosign/releases/download/v2.6.1/cosign-linux-amd64"
-url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/299820440"
+checksum = "sha256:f7622ed3cf22e55e1ae6377c080979ff77a22da9981c11df222a2e444991e7cf"
+url = "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-linux-amd64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/480496709"
+provenance = "cosign"
 
 [tools.cosign."platforms.macos-arm64"]
-checksum = "sha256:54047052cf46f40a5c3c95a510db276e164ba77e096aea1ca1b733f770359689"
-url = "https://github.com/sigstore/cosign/releases/download/v2.6.1/cosign-darwin-arm64"
-url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/299820629"
+checksum = "sha256:dec1c3f802320b19c2fbcf2dc7bcfb3f258e1c181a046c23a1a074bdf932f10a"
+url = "https://github.com/sigstore/cosign/releases/download/v3.1.2/cosign-darwin-arm64"
+url_api = "https://api.github.com/repos/sigstore/cosign/releases/assets/480497116"
+provenance = "cosign"
 
 [[tools.editorconfig-checker]]
 version = "3.8.0"
