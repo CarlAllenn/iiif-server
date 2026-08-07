@@ -10,8 +10,7 @@ fuzz_target!(|data: &[u8]| {
     };
     if let Ok(request) = iiif_core::grammar::ImageRequest::parse(input) {
         let printed = request.to_string();
-        let reparsed = iiif_core::grammar::ImageRequest::parse(&printed)
-            .expect("canonical print must reparse");
-        assert_eq!(reparsed, request, "round-trip mismatch for {input:?}");
+        let reparsed = iiif_core::grammar::ImageRequest::parse(&printed);
+        assert_eq!(reparsed, Ok(request), "round-trip mismatch for {input:?}");
     }
 });

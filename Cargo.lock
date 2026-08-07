@@ -879,33 +879,38 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "j2k"
-version = "0.8.0"
-source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0371832fbd6d4e7c83ab85545bb41474f91f565dd1e5660b733de11b54a257eb"
 dependencies = [
  "j2k-codec-math",
  "j2k-core",
  "j2k-native",
  "j2k-types",
+ "moxcms",
  "thiserror",
 ]
 
 [[package]]
 name = "j2k-codec-math"
-version = "0.8.0"
-source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "165366ed0d18b737c6f6cd2c3ffeb20c94dc40aac70e77c2f6dd1c8b518aec3e"
 
 [[package]]
 name = "j2k-core"
-version = "0.8.0"
-source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "058401c1957538158b1565d0b9453f8165ca0fc62e85197849364971d4be551a"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "j2k-native"
-version = "0.8.0"
-source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c8af5bf0762fdf381b2893a56a365c9a5916ec665716c981140afdbd0e9cb76"
 dependencies = [
  "fearless_simd",
  "j2k-codec-math",
@@ -917,13 +922,15 @@ dependencies = [
 
 [[package]]
 name = "j2k-profile"
-version = "0.8.0"
-source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be460f47625754ece6c087e869d80b119775d3b76b107ffaf2769b8ca5c1caca"
 
 [[package]]
 name = "j2k-types"
-version = "0.8.0"
-source = "git+https://github.com/frames-sg/j2k?rev=85e7e2987396b5c8a2c3b7b0228fd0d054164f28#85e7e2987396b5c8a2c3b7b0228fd0d054164f28"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dae71c13c5e4c230bbc5dcf338faa3e5e45cc2906acef762e613b33110e9423d"
 
 [[package]]
 name = "jni"
@@ -1107,6 +1114,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "moxcms"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
+dependencies = [
+ "num-traits",
+ "pxfm",
+]
+
+[[package]]
 name = "nix"
 version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1283,6 +1300,12 @@ dependencies = [
  "tempfile",
  "unarray",
 ]
+
+[[package]]
+name = "pxfm"
+version = "0.1.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "quick-error"
