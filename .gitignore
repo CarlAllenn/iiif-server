@@ -6,11 +6,13 @@ settings.local.json
 # Spike scratch output (numbers get recorded in docs/spikes/, not committed raw)
 /spikes/out/
 # Fuzzing: the harness is committed, the corpora and crash artifacts are not
-# (findings become regression fixtures + tests instead).
+# (findings become regression fixtures + tests instead). The lockfile IS
+# committed: lint:rust gates the harness on every push, and an unlocked
+# resolve let a broken upstream release (zune-core 0.5.2) redden main
+# minutes after it published.
 /fuzz/corpus/
 /fuzz/artifacts/
 /fuzz/target/
-/fuzz/Cargo.lock
 
 # go-task fingerprint cache
 .task/
