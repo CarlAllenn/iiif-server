@@ -43,7 +43,11 @@ jobs:
           disable-sudo: true
           # Derived from the audit run plus the GitHub-owned
           # cold-cache set (mise tool installs on cache miss).
+          # *.githubapp.com is GitHub's own hosted-compute plane
+          # (watchdog/orchestrator); blocking it correlated with runners
+          # being reaped mid-run on long fuzz jobs (2026-08-07 nightly).
           allowed-endpoints: >
+            *.githubapp.com:443
             api.github.com:443
             codeload.github.com:443
             crates.io:443

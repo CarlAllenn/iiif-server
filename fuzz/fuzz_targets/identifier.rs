@@ -18,7 +18,7 @@ fuzz_target!(|data: &[u8]| {
             assert_ne!(segment, "..");
         }
         // Re-encoding must round-trip.
-        let re = iiif_core::ident::Identifier::decode(&id.encoded()).expect("re-encode round-trip");
-        assert_eq!(re, id);
+        let re = iiif_core::ident::Identifier::decode(&id.encoded());
+        assert_eq!(re, Ok(id));
     }
 });

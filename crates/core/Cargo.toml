@@ -15,7 +15,9 @@ serde_json = { workspace = true }
 tiff = "0.11"
 zune-jpeg = "0.5"
 png = "0.18"
-j2k = "0.8"
+# 0.8.1 floor: first release with the three region-decode fixes we
+# previously carried via [patch.crates-io] (issue #21).
+j2k = "0.8.1"
 # Pin-forever class (pure compute, no hostile bytes)
 num-traits = "0.2"
 fast_image_resize = "6"
