@@ -74,7 +74,9 @@ tasks:
       # fuzz is outside the workspace and resolves its own lockfile; gate it
       # here so harness/API drift fails the push gate, not the nightly fuzz
       # build (which is how the j2k unpin gap went unnoticed for ten days).
-      - cargo clippy --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
+      # --locked: the gate must be deterministic — fresh resolves let any
+      # broken upstream release redden main with no repo change.
+      - cargo clippy --locked --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
 
   lint:fmt-check:
     desc: rustfmt check, both workspaces, pinned nightly
