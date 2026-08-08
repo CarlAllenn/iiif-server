@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "iiif-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bytes",
  "fast_image_resize",
@@ -809,7 +809,7 @@ dependencies = [
 
 [[package]]
 name = "iiif-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bytes",
  "http-body-util",
@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "iiif-sources"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bytes",
  "iiif-core",

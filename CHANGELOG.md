@@ -8,6 +8,26 @@ over the surface named in [MAINTENANCE.md](MAINTENANCE.md) — the HTTP API, the
 CLI flags and the container contract. Internal Rust APIs are not covered:
 nothing in this workspace is published to a registry.
 
+## [0.2.0](https://github.com/CarlAllenn/iiif-server/compare/v0.1.0...v0.2.0) - 2026-08-08
+
+### Added
+
+- cooldown 14 days -> 7 (mise leg, three-layer policy) (#79) ([#79](https://github.com/CarlAllenn/iiif-server/pull/79))
+
+### Documentation
+
+- add CLAUDE.md (agent guidance: commands, ground rules, architecture) (#85) ([#85](https://github.com/CarlAllenn/iiif-server/pull/85))
+
+### Fixed
+
+- commit fuzz/Cargo.lock and gate the harness --locked (#84) ([#84](https://github.com/CarlAllenn/iiif-server/pull/84))
+
+### Miscellaneous
+
+- repoint j2k pin from fork to upstream main (all fixes merged) (#78) ([#78](https://github.com/CarlAllenn/iiif-server/pull/78))
+- raise scan:image floor to the trivy canon (renovate-config#15) (#81) ([#81](https://github.com/CarlAllenn/iiif-server/pull/81))
+- drop the CI dependency-snapshot SBOM job (scan-shaped, stale) (#82) ([#82](https://github.com/CarlAllenn/iiif-server/pull/82))
+- consume j2k 0.8.1 — drop the temporary [patch.crates-io] pin (#83) ([#83](https://github.com/CarlAllenn/iiif-server/pull/83))
 ## [0.1.0](https://github.com/CarlAllenn/iiif-server/releases/tag/v0.1.0) - 2026-08-01
 
 ### Added
